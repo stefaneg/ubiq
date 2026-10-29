@@ -13,6 +13,10 @@ and:
 
 Every command exits 2 on a usage or read error.
 
+## Example
+
+See [examples/README.md](examples/README.md).
+
 ## Layout
 
 ubiq reads the layout the domain-modeling skill writes:
