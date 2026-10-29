@@ -67,13 +67,14 @@ capitalised phrases without an entry: Upload Queue
 A phrase without an entry is either a term the glossary is missing or a word to replace with an existing term.
 Only phrases of two or more capitalised words count. `check` always exits 0.
 
-## Example
+## Examples
 
 See [examples/README.md](examples/README.md).
 
 ## Layout
 
-ubiq reads the layout the domain-modeling skill writes:
+ubiq reads the layout that Matt Pocock's
+[domain-modeling skill](https://github.com/mattpocock/skills/tree/main/skills/engineering/domain-modeling) writes:
 
 - **One context:** a `GLOSSARY.md` at the repository root.
 - **Several contexts:** a `GLOSSARY-MAP.md` at the root whose `## Contexts` section links each context's glossary,
@@ -100,3 +101,8 @@ go install github.com/stefaneg/ubiq@latest
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+The glossary, context map, and ADR formats come from the
+[domain-modeling skill](https://github.com/mattpocock/skills/tree/main/skills/engineering/domain-modeling) in
+[mattpocock/skills](https://github.com/mattpocock/skills), copyright (c) 2026 Matt Pocock, MIT licensed. See
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
