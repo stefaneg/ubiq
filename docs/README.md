@@ -6,6 +6,8 @@ ubiq reads the `GLOSSARY.md` glossaries, the `GLOSSARY-MAP.md` context map, and 
 the [domain-modeling skill](https://github.com/mattpocock/skills/tree/main/skills/engineering/domain-modeling) writes.
 It renders them as one HTML page, and it checks both the glossary and other text against the vocabulary.
 
+[![The Glossary term on ubiq's own page: its definition, the terms it refers to and the terms that refer to it, the decisions that touch it, and its health findings](ubiq.png)](examples/ubiq.html)
+
 **[See ubiq's own glossary rendered as a page](examples/ubiq.html)**
 
 ## Install
