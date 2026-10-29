@@ -2,16 +2,70 @@
 
 Tooling for a domain-driven design ubiquitous language kept as Markdown in the repository.
 
-ubiq reads the `GLOSSARY.md` glossaries, the `GLOSSARY-MAP.md` context map and the `docs/adr` decision records,
-and:
+ubiq reads the `GLOSSARY.md` glossaries, the `GLOSSARY-MAP.md` context map, and the `docs/adr` decision records.
+It renders them as one HTML page, and it checks both the glossary and other text against the vocabulary.
 
-- `ubiq html [-root dir] [-out glossary.html]` renders them as one self-contained, searchable HTML page.
-- `ubiq check [-root dir] [file ...]` checks free text (stdin when no file is given) against the vocabulary,
-  listing recognised terms and Capitalised Phrases that have no entry.
-- `ubiq health [-root dir]` reports glossary health findings as `path:line: rule: name: note` and exits 1 when
-  there are any.
+## Usage
 
-Every command exits 2 on a usage or read error.
+Every command reads the repository in the current directory. To read another one, pass `-root dir`. Every command
+exits 2 on a usage or read error.
+
+### Render the glossary as an HTML page
+
+```sh
+ubiq html
+```
+
+`html` writes `glossary.html`: one self-contained page with every term, context, and ADR, and a search box. The page
+also has the context map, the vocabulary check, and the health report. It needs no server, so open it straight from
+disk. To write it somewhere else, pass `-out file`. The command reports what
+went into the page:
+
+```
+wrote glossary.html: 122 terms, 0 notes, 0 map entries, 56 ADRs, 60 unresolved phrases
+```
+
+### Find problems in the glossary
+
+```sh
+ubiq health
+```
+
+`health` prints one finding per line as `path:line: rule: name: note`, then a summary on stderr:
+
+```
+GLOSSARY.md:21: long: Learning Goal: 7 sentences
+GLOSSARY.md:35: orphan: Lineage: refers to 4, referenced by none
+GLOSSARY.md: unresolved: Beat Warning: Course Video Manager: Beat
+179 findings over 122 terms: 92 long, 27 orphan, 0 unmapped, 60 unresolved
+```
+
+It applies four rules:
+
+- `long`: the definition is longer than two sentences.
+- `orphan`: no other definition, relationship, ambiguity note, or map entry refers to the term. ADRs do not count.
+- `unmapped`: two contexts define the same name, and `GLOSSARY-MAP.md` does not name it.
+- `unresolved`: a bold phrase matches no entry. The note names the context and the term where the phrase appears.
+  An unresolved finding has no line number.
+
+`health` exits 1 when it finds anything, so you can run it in CI to keep the glossary clean.
+
+### Check text against the vocabulary
+
+```sh
+ubiq check docs/notes.md
+```
+
+`check` reads the named files, or stdin when you name none. It lists the glossary terms it recognised and the
+Capitalised Phrases that have no entry:
+
+```
+terms recognised: Clip (Course Video Manager); Lesson (Course Video Manager)
+capitalised phrases without an entry: Upload Queue
+```
+
+A phrase without an entry is either a term the glossary is missing or a word to replace with an existing term.
+Only phrases of two or more capitalised words count. `check` always exits 0.
 
 ## Example
 
