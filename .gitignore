@@ -1,2 +1,8 @@
 /ubiq
 glossary.html
+
+# Written by bin/skills sync in stefaneg/skills
+/.claude/skills/.skills-receipt.json
+/.claude/.skills-baselines
+/.agents/skills/.skills-receipt.json
+/.agents/.skills-baselines
