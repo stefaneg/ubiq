@@ -76,3 +76,15 @@ func TestRunHealthIsSilentAndSucceedsWhenClean(t *testing.T) {
 	assert.Empty(t, out.String())
 	assert.Equal(t, "0 findings over 1 terms: 0 long, 0 orphan, 0 unmapped, 0 unresolved", healthSummary(findings, 1))
 }
+
+func TestHealthNamesContextsByTheirHeading(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"GLOSSARY.md": "# Course Video Manager\n\n## Language\n\n**Clip**:\nA cut of a **Take**.\n",
+	})
+	model, err := LoadModel(root)
+	require.NoError(t, err)
+	findings := Health(model)
+	require.Len(t, findings, 2)
+	assert.Equal(t, "Course Video Manager: Clip", findings[0].Note)
+}

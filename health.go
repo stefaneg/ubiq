@@ -69,7 +69,7 @@ func Health(model *Model) []HealthFinding {
 			var others []string
 			for _, other := range byName[key] {
 				if other != id {
-					others = append(others, contextName(model.Terms[other].Context))
+					others = append(others, model.contextName(model.Terms[other].Context))
 				}
 			}
 			sort.Strings(others)
@@ -78,7 +78,7 @@ func Health(model *Model) []HealthFinding {
 	}
 	for _, u := range model.Unresolved {
 		out = append(out, HealthFinding{Path: paths[u.Context], Rule: "unresolved", Name: u.Phrase,
-			Note: contextName(u.Context) + ": " + u.Where})
+			Note: model.contextName(u.Context) + ": " + u.Where})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]

@@ -132,7 +132,7 @@ func (r *Report) termList(ids []string) string {
 	parts := make([]string, len(ids))
 	for i, id := range ids {
 		t := r.model.Terms[id]
-		parts[i] = fmt.Sprintf("%s (%s)", t.Name, contextName(t.Context))
+		parts[i] = fmt.Sprintf("%s (%s)", t.Name, r.model.contextName(t.Context))
 	}
 	return strings.Join(parts, "; ")
 }
@@ -170,6 +170,12 @@ func (r *Report) distinctWritten(fs []Finding) string {
 	return strings.Join(out, ", ")
 }
 
-func contextName(key string) string {
-	return strings.ToUpper(key[:1]) + key[1:]
+// contextName is the heading of the context with key, or the key when the model has no such context.
+func (m *Model) contextName(key string) string {
+	for _, c := range m.Contexts {
+		if c.Key == key {
+			return c.Name
+		}
+	}
+	return key
 }
