@@ -24,15 +24,15 @@ type Finding struct {
 // Check applies the page's health rules to the model and returns the findings sorted by file, line and rule.
 //
 //	long       definition longer than two sentences
-//	orphan     no definition, relationship bullet, ambiguity or map entry refers to the term (ADRs do not count)
-//	unmapped   an entry name defined in two contexts that the map does not name
+//	orphan     no other term's definition refers to the term (ADRs do not count)
+//	unmapped   a term name defined in two contexts
 //	unresolved a bold phrase with no entry
 func Check(model *glossary.Model) []Finding {
 	paths := map[string]string{}
 	for _, c := range model.Contexts {
 		paths[c.Key] = c.Path
 	}
-	inbound, noted, mapped, mapNames := map[string]int{}, map[string]int{}, map[string]int{}, map[string]bool{}
+	inbound := map[string]int{}
 	byName := map[string][]string{}
 	for id, t := range model.Terms {
 		for _, r := range t.Refs {
@@ -40,17 +40,6 @@ func Check(model *glossary.Model) []Finding {
 		}
 		key := strings.ToLower(t.Name)
 		byName[key] = append(byName[key], id)
-	}
-	for _, n := range model.Notes {
-		for _, id := range n.TermIDs {
-			noted[id]++
-		}
-	}
-	for _, e := range model.MapEntries {
-		mapNames[strings.ToLower(e.Name)] = true
-		for _, id := range e.TermIDs {
-			mapped[id]++
-		}
 	}
 	var out []Finding
 	add := func(t *glossary.Term, rule, note string) {
@@ -60,7 +49,7 @@ func Check(model *glossary.Model) []Finding {
 		if n := sentences(plainText(t.Definition)); n > 2 {
 			add(t, "long", fmt.Sprintf("%d sentences", n))
 		}
-		if inbound[id] == 0 && noted[id] == 0 && mapped[id] == 0 {
+		if inbound[id] == 0 {
 			note := "no references in or out"
 			if len(t.Refs) > 0 {
 				note = fmt.Sprintf("refers to %d, referenced by none", len(t.Refs))
@@ -68,7 +57,7 @@ func Check(model *glossary.Model) []Finding {
 			add(t, "orphan", note)
 		}
 		key := strings.ToLower(t.Name)
-		if len(byName[key]) > 1 && !mapNames[key] {
+		if len(byName[key]) > 1 {
 			var others []string
 			for _, other := range byName[key] {
 				if other != id {

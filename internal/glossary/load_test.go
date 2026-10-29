@@ -112,15 +112,6 @@ func TestLoadWithoutARootGlossaryKeepsMapOrder(t *testing.T) {
 	assert.Empty(t, model.Unresolved, "the map's Relationships section is not read as vocabulary")
 }
 
-func TestMapBulletsNamingAnyContextResolveInIt(t *testing.T) {
-	model, err := glossary.Load(contextsOnlyRoot(t))
-	require.NoError(t, err)
-	require.Len(t, model.MapEntries, 1)
-	entry := model.MapEntries[0].HTML
-	assert.Contains(t, entry, `data-id="billing/customer"`)
-	assert.Contains(t, entry, `data-id="ordering/customer"`)
-}
-
 func TestLoadReadsEachContextsOwnADRs(t *testing.T) {
 	model, err := glossary.Load(contextsOnlyRoot(t))
 	require.NoError(t, err)

@@ -11,7 +11,8 @@ import (
 	"github.com/stefaneg/ubiq/internal/glossary"
 )
 
-// Root writes a three-context glossary, a context map and one ADR into a temp dir.
+// Root writes a three-context glossary, a context map and one ADR into a temp dir. The Relationships, Flagged
+// ambiguities and Cross-context vocabulary sections are not part of the domain-modeling format and are not read.
 func Root(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -20,11 +21,11 @@ func Root(t *testing.T) string {
 
 Shared vocabulary.
 
-## Image References
+## Language
+
+### Image References
 
 Intro for image refs.
-
-### Language
 
 **Image Ref**:
 A reference to an **Image** by **Tag**.
@@ -35,32 +36,26 @@ A mutable label on a **Repository**. Second sentence. Third sentence.
 _Avoid_: label
 
 **Repository**:
-A path in a registry.
+A path in a registry that holds **Images** under a **Label**.
 _Avoid_: repo (short), path
 
-### Relationships
-
-- A **Tag** moves between **Images**.
-
-### Flagged ambiguities
-
-- **Tag** also means a git **Label**.
-
-## Run Tracking
-
-### Language
+### Run Tracking
 
 **Run**:
-One invocation.
+One invocation, which starts **Units of Work**.
 _Avoid_: execution
 
 **Unit of Work**:
 One process a **Run** starts.
 _Avoid_: job
 
-### Relationships
+## Relationships
 
-- A **Run** starts zero or more **Units of Work**.
+- A **Tag** moves between **Images** and a **Ghost**.
+
+## Flagged ambiguities
+
+- **Tag** also means a git **Phantom**.
 `,
 		"internal/workspace/GLOSSARY.md": `# Workspace
 
@@ -81,16 +76,6 @@ _Avoid_: project, repo
 **Run**:
 A workspace-scoped **Run**.
 _Avoid_: job
-
-## Relationships
-
-### Planning
-
-- An **Image** is produced in a **Run**.
-
-## Flagged ambiguities
-
-- **Run** is defined in Common too.
 `,
 		"internal/stacks/GLOSSARY.md": `# Stacks
 
@@ -126,30 +111,21 @@ _Avoid_: stack container
 
 #### Run
 
-- Workspace: a **Run** spans a **Workspace**.
-- Stacks: a **Run** spans a **Stack**.
-
-  | Phase | Default |
-  | ----- | ------- |
-  | pre   | ` + "`true`" + `  |
-
-  Trailing note inside the bullet.
-
-### True collisions
-
-#### Tag
-
-The common **Tag** versus a git tag.
-
-### Common anchors
-
-**[Image Ref](GLOSSARY.md#image-references)** — the **Image Ref** and its **Tag**.
+- Workspace: a **Run** spans a **Spectre**.
 `,
 		"docs/adr/0001-pin-tags.md": `# Pin tags on Stack Images
 
 ## Decision
 
 **Every Stack Image is pinned.** A Workspace Run records the Tags it used. Unknown Phrase stays plain.
+
+- Phases:
+
+  | Phase | Default |
+  | ----- | ------- |
+  | pre   | ` + "`true`" + `  |
+
+  Trailing note inside the bullet.
 `,
 	}
 	WriteTree(t, root, files)

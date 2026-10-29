@@ -22,7 +22,7 @@ disk. To write it somewhere else, pass `-out file`. The command reports what
 went into the page:
 
 ```
-wrote glossary.html: 122 terms, 0 notes, 0 map entries, 56 ADRs, 60 unresolved phrases
+wrote glossary.html: 122 terms, 56 ADRs, 60 unresolved phrases
 ```
 
 ### Find problems in the glossary
@@ -43,8 +43,8 @@ GLOSSARY.md: unresolved: Beat Warning: Course Video Manager: Beat
 It applies four rules:
 
 - `long`: the definition is longer than two sentences.
-- `orphan`: no other definition, relationship, ambiguity note, or map entry refers to the term. ADRs do not count.
-- `unmapped`: two contexts define the same name, and `GLOSSARY-MAP.md` does not name it.
+- `orphan`: no other term's definition refers to the term. ADRs do not count.
+- `unmapped`: two contexts define the same name.
 - `unresolved`: a bold phrase matches no entry. The note names the context and the term where the phrase appears.
   An unresolved finding has no line number.
 

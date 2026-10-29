@@ -31,29 +31,6 @@ type Term struct {
 	Line       int      `json:"line"`
 }
 
-// Note is a Relationships or Flagged-ambiguities bullet.
-type Note struct {
-	Kind    string   `json:"kind"` // relationship | ambiguity
-	Context string   `json:"context"`
-	Cluster string   `json:"cluster"`
-	HTML    string   `json:"html"`
-	TermIDs []string `json:"terms"`
-}
-
-// MapEntry is one heading under GLOSSARY-MAP.md "Cross-context vocabulary".
-type MapEntry struct {
-	Kind    string   `json:"kind"` // mirror | collision | resolved | anchor
-	Name    string   `json:"name"`
-	HTML    string   `json:"html"`
-	TermIDs []string `json:"terms"`
-}
-
-type Dialogue struct {
-	Context string `json:"context"`
-	Cluster string `json:"cluster"`
-	HTML    string `json:"html"`
-}
-
 type Unresolved struct {
 	Phrase  string `json:"phrase"`
 	Context string `json:"context"`
@@ -63,9 +40,6 @@ type Unresolved struct {
 type Model struct {
 	Contexts   []Context        `json:"contexts"`
 	Terms      map[string]*Term `json:"terms"`
-	Notes      []Note           `json:"notes"`
-	Dialogues  []Dialogue       `json:"dialogues"`
-	MapEntries []MapEntry       `json:"map"`
 	Unresolved []Unresolved     `json:"unresolved"`
 	ADRs       []ADR            `json:"adrs"`
 }

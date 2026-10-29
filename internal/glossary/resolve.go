@@ -50,10 +50,9 @@ func isWordBreak(r rune) bool { return r == ' ' || r == '-' }
 type Resolver struct {
 	byContext map[string]map[string]string // context -> lowercase name -> id
 	model     *Model
-	order     []string          // resolution order after a phrase's own context: the shared context first
-	shared    string            // key of the shared context; empty when there is none
-	ctxNames  map[string]string // context name -> key
-	lenient   bool              // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
+	order     []string // resolution order after a phrase's own context: the shared context first
+	shared    string   // key of the shared context; empty when there is none
+	lenient   bool     // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
 }
 
 func slug(s string) string {
@@ -272,14 +271,7 @@ func (r *Resolver) block(lines []string, ctx, where string) (string, []string) {
 				item += " " + strings.TrimSpace(lines[i])
 				i++
 			}
-			// bullet context override for the context map: "- Billing: a **Customer** ..."
-			bctx := ctx
-			if name, _, ok := strings.Cut(item, ":"); ok {
-				if k, ok := r.ctxNames[name]; ok {
-					bctx = k
-				}
-			}
-			h, x := r.inline(item, bctx, where)
+			h, x := r.inline(item, ctx, where)
 			add(x)
 			out.WriteString("<li>" + h)
 			liOpen = true
@@ -327,13 +319,12 @@ func (r *Resolver) block(lines []string, ctx, where string) (string, []string) {
 	return out.String(), ids
 }
 
-func build(contexts []*rawContext, mapEntries []rawMapEntry, adrs []rawADR) *Model {
+func build(contexts []*rawContext, adrs []rawADR) *Model {
 	m := &Model{Terms: map[string]*Term{}}
-	r := &Resolver{byContext: map[string]map[string]string{}, model: m, ctxNames: map[string]string{}}
+	r := &Resolver{byContext: map[string]map[string]string{}, model: m}
 	// pass 1: register terms
 	for _, rc := range contexts {
 		r.order = append(r.order, rc.key)
-		r.ctxNames[rc.name] = rc.key
 		if rc.shared {
 			r.shared = rc.key
 		}
@@ -362,42 +353,11 @@ func build(contexts []*rawContext, mapEntries []rawMapEntry, adrs []rawADR) *Mod
 				term.Definition, term.Refs = r.inline(t.def, rc.key, t.name)
 				cc.TermIDs = append(cc.TermIDs, id)
 			}
-			for _, b := range cl.rels {
-				h, ids := r.inline(b.text, rc.key, cname+" relationships")
-				m.Notes = append(m.Notes, Note{Kind: "relationship", Context: rc.key, Cluster: cname, HTML: h, TermIDs: ids})
-			}
-			for _, b := range cl.ambig {
-				h, ids := r.inline(b.text, rc.key, cname+" ambiguities")
-				m.Notes = append(m.Notes, Note{Kind: "ambiguity", Context: rc.key, Cluster: cname, HTML: h, TermIDs: ids})
-			}
-			if len(cl.dialogue) > 0 {
-				h, _ := r.inline(strings.Join(cl.dialogue, "<br>"), rc.key, cname+" dialogue")
-				h = strings.ReplaceAll(h, "&lt;br&gt;", "<br>")
-				m.Dialogues = append(m.Dialogues, Dialogue{Context: rc.key, Cluster: cname, HTML: h})
-			}
-			if len(cc.TermIDs) > 0 || len(cl.rels) > 0 || len(cl.ambig) > 0 {
+			if len(cc.TermIDs) > 0 {
 				c.Clusters = append(c.Clusters, cc)
 			}
 		}
 		m.Contexts = append(m.Contexts, c)
-	}
-	for _, e := range mapEntries {
-		h, ids := r.block(e.body, r.order[0], "context map: "+e.name)
-		// link the heading name itself to every context's term of that name
-		for _, k := range r.order {
-			if id, ok := r.byContext[k][strings.ToLower(e.name)]; ok {
-				found := false
-				for _, x := range ids {
-					if x == id {
-						found = true
-					}
-				}
-				if !found {
-					ids = append([]string{id}, ids...)
-				}
-			}
-		}
-		m.MapEntries = append(m.MapEntries, MapEntry{Kind: e.kind, Name: e.name, HTML: h, TermIDs: ids})
 	}
 	m.ADRs = r.renderADRs(adrs)
 	sort.Slice(m.Unresolved, func(i, j int) bool { return m.Unresolved[i].Phrase < m.Unresolved[j].Phrase })

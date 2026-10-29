@@ -74,8 +74,8 @@ func runHTML(args []string, status io.Writer) error {
 	if err := os.WriteFile(*out, []byte(html), 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintf(status, "wrote %s: %d terms, %d notes, %d map entries, %d ADRs, %d unresolved phrases\n",
-		*out, len(model.Terms), len(model.Notes), len(model.MapEntries), len(model.ADRs), len(model.Unresolved))
+	fmt.Fprintf(status, "wrote %s: %d terms, %d ADRs, %d unresolved phrases\n",
+		*out, len(model.Terms), len(model.ADRs), len(model.Unresolved))
 	return nil
 }
 

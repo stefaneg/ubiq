@@ -39,62 +39,50 @@ func TestDefinitionLinksResolveOwnContextThenCommonThenOtherCore(t *testing.T) {
 
 func TestPluralBoldPhrasesResolveToTheSingularTerm(t *testing.T) {
 	model := glossarytest.Load(t)
-	rel := model.Notes[0]
-	assert.Equal(t, "relationship", rel.Kind)
-	assert.Equal(t, "Image References", rel.Cluster)
-	assert.Equal(t, []string{"common/tag", "workspace/image"}, rel.TermIDs)
+	assert.Equal(t, []string{"workspace/image"}, model.Terms["common/repository"].Refs)
 }
 
 func TestUnresolvedBoldPhrasesAreMarkedAndListed(t *testing.T) {
 	model := glossarytest.Load(t)
-	amb := model.Notes[1]
-	assert.Equal(t, "ambiguity", amb.Kind)
-	assert.Contains(t, amb.HTML, `<span class="unres">Label</span>`)
+	assert.Contains(t, model.Terms["common/repository"].Definition, `<span class="unres">Label</span>`)
 	require.Len(t, model.Unresolved, 1)
-	assert.Equal(t, glossary.Unresolved{Phrase: "Label", Context: "common", Where: "Image References ambiguities"}, model.Unresolved[0])
+	assert.Equal(t, glossary.Unresolved{Phrase: "Label", Context: "common", Where: "Repository"}, model.Unresolved[0])
 }
 
 func TestHeadNounPluralsResolveToTheirTerm(t *testing.T) {
 	model := glossarytest.Load(t)
-	var rel glossary.Note
-	for _, n := range model.Notes {
-		if n.Context == "common" && n.Cluster == "Run Tracking" && n.Kind == "relationship" {
-			rel = n
-		}
-	}
-	assert.Contains(t, rel.HTML, `data-id="common/unit-of-work">Units of Work</a>`)
-	assert.Equal(t, []string{"common/run", "common/unit-of-work"}, rel.TermIDs)
+	run := model.Terms["common/run"]
+	assert.Contains(t, run.Definition, `data-id="common/unit-of-work">Units of Work</a>`)
+	assert.Equal(t, []string{"common/unit-of-work"}, run.Refs)
 }
 
-func TestCoreFileTopLevelAmbiguitiesLandInGeneral(t *testing.T) {
+func TestSectionsOutsideLanguageAreNotRead(t *testing.T) {
 	model := glossarytest.Load(t)
-	var general []glossary.Note
-	for _, n := range model.Notes {
-		if n.Context == "workspace" && n.Kind == "ambiguity" {
-			general = append(general, n)
-		}
+	for _, u := range model.Unresolved {
+		assert.NotContains(t, []string{"Ghost", "Phantom", "Spectre"}, u.Phrase)
 	}
-	require.Len(t, general, 1)
-	assert.Equal(t, "General", general[0].Cluster)
-	assert.Equal(t, []string{"workspace/run"}, general[0].TermIDs)
+	var clusters []string
+	for _, cl := range model.Contexts[0].Clusters {
+		clusters = append(clusters, cl.Name)
+	}
+	assert.Equal(t, []string{"Image References", "Run Tracking"}, clusters)
 }
 
-func TestContextMapEntriesCarryKindAndHeadingTerms(t *testing.T) {
-	model := glossarytest.Load(t)
-	require.Len(t, model.MapEntries, 3)
-	run, tag, anchor := model.MapEntries[0], model.MapEntries[1], model.MapEntries[2]
-	assert.Equal(t, "mirror", run.Kind)
-	assert.Equal(t, "Run", run.Name)
-	assert.Equal(t, []string{"workspace/run", "workspace/workspace", "common/run", "stacks/stack"}, run.TermIDs)
-	assert.Equal(t, "collision", tag.Kind)
-	assert.Equal(t, "anchor", anchor.Kind)
-	assert.Equal(t, "Image Ref", anchor.Name)
-	assert.Contains(t, anchor.HTML, `href="#common/image-ref"`)
+func TestTermsWithoutASubheadingLandInGeneral(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{
+		"GLOSSARY.md": "# Ordering\n\nTakes orders.\n\n## Language\n\n**Order**:\nA request for goods.\n",
+	})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	require.Len(t, model.Contexts[0].Clusters, 1)
+	assert.Equal(t, "General", model.Contexts[0].Clusters[0].Name)
+	assert.Equal(t, []string{"ordering/order"}, model.Contexts[0].Clusters[0].TermIDs)
+	assert.Equal(t, "<p>Takes orders.</p>", model.Contexts[0].Intro)
 }
 
 func TestTablesAndTrailingParagraphsNestInsideTheirBullet(t *testing.T) {
-	model := glossarytest.Load(t)
-	html := model.MapEntries[0].HTML
+	html := glossarytest.Load(t).ADRs[0].HTML
 	assert.Contains(t, html, `<table class="md"><tr><th>Phase</th><th>Default</th></tr><tr><td>pre</td><td><code>true</code></td></tr></table>`)
 	assert.Contains(t, html, `<p>Trailing note inside the bullet.</p></li></ul>`)
 }
