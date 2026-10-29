@@ -109,6 +109,10 @@ _Avoid_: stack container
 
 ## Contexts
 
+- [Workspace](internal/workspace/GLOSSARY.md) — the imgctl core.
+- [Stacks](./internal/stacks/GLOSSARY.md): the envctl core.
+- [Common](GLOSSARY.md) — shared by both, with clusters like [Image References](GLOSSARY.md#image-references).
+
 | Package | Context |
 | --- | --- |
 | ` + "`internal/workspace/**`" + ` | Workspace |
@@ -145,12 +149,18 @@ The common **Tag** versus a git tag.
 **Every Stack Image is pinned.** A Workspace Run records the Tags it used. Unknown Phrase stays plain.
 `,
 	}
+	writeTree(t, root, files)
+	return root
+}
+
+// writeTree writes files, keyed by slash-separated path relative to root.
+func writeTree(t *testing.T, root string, files map[string]string) {
+	t.Helper()
 	for rel, content := range files {
 		path := filepath.Join(root, filepath.FromSlash(rel))
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 	}
-	return root
 }
 
 func loadFixture(t *testing.T) *Model {

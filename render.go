@@ -50,8 +50,10 @@ func isWordBreak(r rune) bool { return r == ' ' || r == '-' }
 type Resolver struct {
 	byContext map[string]map[string]string // context -> lowercase name -> id
 	model     *Model
-	order     []string
-	lenient   bool // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
+	order     []string          // resolution order after a phrase's own context: the shared context first
+	shared    string            // key of the shared context; empty when there is none
+	ctxNames  map[string]string // context name -> key
+	lenient   bool              // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
 }
 
 func slug(s string) string {
@@ -117,14 +119,14 @@ func headPlurals(name string) []string {
 	return out
 }
 
-// lookup tries own context, then Common, then the rest.
+// lookup tries own context, then the shared one, then the rest.
 func (r *Resolver) lookup(phrase, ctx string) string {
 	phrase = strings.TrimSpace(phrase)
 	phrase = strings.TrimSuffix(phrase, "'s")
 	phrase = strings.TrimSuffix(phrase, "’s")
-	order := []string{ctx, "common"}
+	order := []string{ctx}
 	for _, k := range r.order {
-		if k != ctx && k != "common" {
+		if k != ctx {
 			order = append(order, k)
 		}
 	}
@@ -270,12 +272,12 @@ func (r *Resolver) block(lines []string, ctx, where string) (string, []string) {
 				item += " " + strings.TrimSpace(lines[i])
 				i++
 			}
-			// bullet context override for the context map
+			// bullet context override for the context map: "- Billing: a **Customer** ..."
 			bctx := ctx
-			if strings.HasPrefix(item, "Workspace:") {
-				bctx = "workspace"
-			} else if strings.HasPrefix(item, "Stacks:") {
-				bctx = "stacks"
+			if name, _, ok := strings.Cut(item, ":"); ok {
+				if k, ok := r.ctxNames[name]; ok {
+					bctx = k
+				}
 			}
 			h, x := r.inline(item, bctx, where)
 			add(x)
@@ -327,10 +329,14 @@ func (r *Resolver) block(lines []string, ctx, where string) (string, []string) {
 
 func build(contexts []*rawContext, mapEntries []rawMapEntry, adrs []rawADR) *Model {
 	m := &Model{Terms: map[string]*Term{}}
-	r := &Resolver{byContext: map[string]map[string]string{}, model: m}
+	r := &Resolver{byContext: map[string]map[string]string{}, model: m, ctxNames: map[string]string{}}
 	// pass 1: register terms
 	for _, rc := range contexts {
 		r.order = append(r.order, rc.key)
+		r.ctxNames[rc.name] = rc.key
+		if rc.shared {
+			r.shared = rc.key
+		}
 		r.byContext[rc.key] = map[string]string{}
 		for _, cname := range rc.clusterOrder {
 			for _, t := range rc.clusters[cname].terms {
@@ -345,7 +351,7 @@ func build(contexts []*rawContext, mapEntries []rawMapEntry, adrs []rawADR) *Mod
 	// pass 2: render
 	for _, rc := range contexts {
 		intro, _ := r.block(rc.intro, rc.key, rc.name+" intro")
-		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: intro}
+		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Shared: rc.shared, Intro: intro}
 		for _, cname := range rc.clusterOrder {
 			cl := rc.clusters[cname]
 			ci, _ := r.block(cl.intro, rc.key, cname+" intro")
@@ -376,7 +382,7 @@ func build(contexts []*rawContext, mapEntries []rawMapEntry, adrs []rawADR) *Mod
 		m.Contexts = append(m.Contexts, c)
 	}
 	for _, e := range mapEntries {
-		h, ids := r.block(e.body, "common", "context map: "+e.name)
+		h, ids := r.block(e.body, r.order[0], "context map: "+e.name)
 		// link the heading name itself to every context's term of that name
 		for _, k := range r.order {
 			if id, ok := r.byContext[k][strings.ToLower(e.name)]; ok {

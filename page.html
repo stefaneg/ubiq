@@ -9,7 +9,7 @@
   --bg:#1b1d21;--fg:#e8e8e4;--muted:#9aa0a8;--line:#34373d;--panel:#24272d;--panel2:#2b2f36;
   --accent:#8ab4f8;--accent-bg:#2a3a52;--amber:#f2c377;--amber-bg:#3d3222;
   --rose:#f49ab0;--rose-bg:#45262e;--teal:#7fd3c4;--teal-bg:#1f3a37;
-  --common:#c3b5f0;--workspace:#8ab4f8;--stacks:#7fd3c4;--common-bg:#332b4a;
+  --shared:#c3b5f0;
   --navw:260px;
   font-family: ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
 }
@@ -29,9 +29,6 @@ a.t:hover{background:var(--accent-bg)}
 .avoid{color:var(--muted);font-size:.85em}
 .avoid b{font-weight:600;color:var(--muted)}
 .chip{display:inline-block;font-size:.7em;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:.1em .5em;border-radius:999px;vertical-align:middle;margin-left:.4em}
-.chip.common{background:var(--common-bg);color:var(--common)}
-.chip.workspace{background:var(--accent-bg);color:var(--workspace)}
-.chip.stacks{background:var(--teal-bg);color:var(--stacks)}
 .chip.amb{background:var(--amber-bg);color:var(--amber)}
 .chip.col{background:var(--rose-bg);color:var(--rose)}
 .chip.map{background:#383c44;color:#b8bec8}
@@ -59,7 +56,6 @@ table.md th{background:var(--panel2);font-weight:600}
 .nav .tools a.sel{border-bottom-color:var(--accent)}
 .nav .navFilter{width:100%;padding:.4em .6em;border:1px solid var(--line);border-radius:6px;font:inherit;margin-bottom:.8em;background:var(--bg);color:var(--fg)}
 .nav .ctx{margin-top:.8em;font-weight:700;text-transform:uppercase;font-size:.75em;letter-spacing:.05em}
-.nav .ctx.common{color:var(--common)}.nav .ctx.workspace{color:var(--workspace)}.nav .ctx.stacks{color:var(--stacks)}
 .nav .ctx.extra{color:#d0d3d8;margin-top:1.4em;padding-top:.8em;border-top:1px solid var(--line)}
 .nav .cl{margin:.4em 0 .1em .2em;font-weight:600;color:#d0d3d8}
 .nav .cl .cnt{color:var(--muted);font-weight:400}
@@ -126,10 +122,9 @@ details.note.hi{outline:1px solid var(--accent)}
 .mrow:hover text{fill:var(--accent)}
 .mrow text{font-size:11px;fill:#d6d9de}
 .mrow .lk{stroke-width:2}
-.mrow.mirror .lk{stroke:#8ab4f8}.mrow.resolved .lk{stroke:var(--teal)}.mrow.collision .lk{stroke:var(--rose)}.mrow.anchor .lk{stroke:var(--common)}
+.mrow.mirror .lk{stroke:#8ab4f8}.mrow.resolved .lk{stroke:var(--teal)}.mrow.collision .lk{stroke:var(--rose)}.mrow.anchor .lk{stroke:var(--shared)}
 .mrow circle{stroke-width:1.5;fill:#2b2f36}
 .mrow circle.faint{opacity:.45}
-.mrow circle.common{stroke:var(--common)}.mrow circle.workspace{stroke:var(--workspace)}.mrow circle.stacks{stroke:var(--stacks)}
 .lane{font-size:12px;font-weight:600;fill:#d0d3d8}
 .laneline{stroke:#34373d;stroke-dasharray:2 4}
 /* health */
@@ -145,7 +140,6 @@ details.note.hi{outline:1px solid var(--accent)}
 /* svg nodes */
 .node{cursor:pointer}
 .node circle{fill:#2b2f36;stroke:#9aa0a8;stroke-width:1.5}
-.node.common circle{stroke:var(--common)}.node.workspace circle{stroke:var(--workspace)}.node.stacks circle{stroke:var(--stacks)}
 .node.amb circle{fill:var(--amber-bg)}
 .node.col .ring{fill:none;stroke:var(--rose);stroke-width:1}
 .node.centre circle{fill:#e8e8e4;stroke:#e8e8e4}
@@ -164,13 +158,26 @@ details.note.hi{outline:1px solid var(--accent)}
 // ------------------------------------------------------------------ model
 const T = DATA.terms;
 for (const id in T) { T[id].refs = (T[id].refs || []).filter(x => x !== id); T[id].redirects ||= []; }
-DATA.notes.forEach(n => n.terms ||= []);
-DATA.map.forEach(e => e.terms ||= []);
-DATA.contexts.forEach(c => c.clusters.forEach(cl => cl.terms ||= []));
+DATA.notes ||= []; DATA.notes.forEach(n => n.terms ||= []);
+DATA.map ||= []; DATA.map.forEach(e => e.terms ||= []);
+DATA.contexts.forEach(c => (c.clusters ||= []).forEach(cl => cl.terms ||= []));
+DATA.dialogues ||= [];
 DATA.adrs ||= []; DATA.adrs.forEach(a => a.terms ||= []);
 DATA.unresolved ||= [];
-const CTX_NAME = {common:'Common', workspace:'Workspace', stacks:'Stacks'};
-const CTX_ORDER = ['workspace', 'common', 'stacks'];
+const CTX_NAME = Object.fromEntries(DATA.contexts.map(c => [c.key, c.name]));
+// CTX_ORDER is the map's lane order: the shared context in the middle of the others
+const CTX_ORDER = DATA.contexts.filter(c => !c.shared).map(c => c.key);
+for (const c of DATA.contexts.filter(c => c.shared)) CTX_ORDER.splice(Math.ceil(CTX_ORDER.length / 2), 0, c.key);
+const ctxCls = k => 'ctx-' + k;
+{ // one colour per context, the shared one in the colour of map anchors
+  const SHARED = ['#c3b5f0', '#332b4a'], PALETTE = [['#8ab4f8', '#2a3a52'], ['#7fd3c4', '#1f3a37'], ['#a8d68a', '#283823'], ['#f0a57a', '#40291e'], ['#e2a6e8', '#3d2741'], ['#d6d9de', '#34373d']];
+  let i = 0, css = '';
+  for (const c of DATA.contexts) {
+    const [fg, bg] = c.shared ? SHARED : PALETTE[i++ % PALETTE.length], k = ctxCls(c.key);
+    css += `.chip.${k}{background:${bg};color:${fg}}.nav .ctx.${k}{color:${fg}}.mrow circle.${k}{stroke:${fg}}.node.${k} circle{stroke:${fg}}`;
+  }
+  const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+}
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const inbound = {}, notesFor = {}, mapFor = {}, adrsFor = {}, byName = {}, ADR = {};
@@ -193,10 +200,10 @@ const textOf = h => { tmp.innerHTML = h; return tmp.textContent; };
 const chip = (cls, txt, title) => `<span class="chip ${cls}" title="${esc(title || '')}">${txt}</span>`;
 const link = (id, cls = '') => `<a class="t ${cls}" href="#${id}" data-id="${id}">${esc(T[id].name)}</a>`;
 const avoidLine = t => t.avoid ? `<div class="avoid"><b>Avoid:</b> ${esc(t.avoid)}</div>` : '';
-const ctxChip = id => chip(T[id].context, CTX_NAME[T[id].context]);
+const ctxChip = id => chip(ctxCls(T[id].context), CTX_NAME[T[id].context]);
 function badges(id, withCtx = true) {
   const t = T[id]; let s = '';
-  if (withCtx) s += chip(t.context, CTX_NAME[t.context], t.cluster);
+  if (withCtx) s += chip(ctxCls(t.context), CTX_NAME[t.context], t.cluster);
   if (isAmb(id)) s += chip('amb', '⚠ ambiguity', ambNotes(id).map(n => textOf(n.html)).join('\n\n'));
   const sw = sameWord(id);
   if (isCollision(id)) s += chip('col', '⇄ collision', 'Same entry name, different meaning, in ' + sw.map(x => CTX_NAME[T[x].context]).join(', '));
@@ -247,7 +254,7 @@ function place(e) {
   pop.style.left = x + 'px'; pop.style.top = y + 'px';
 }
 // ------------------------------------------------------------------ neighbourhood diagram
-const nodeCls = id => `node ${isAmb(id) ? 'amb' : ''} ${isCollision(id) ? 'col' : ''} ${T[id].context}`;
+const nodeCls = id => `node ${isAmb(id) ? 'amb' : ''} ${isCollision(id) ? 'col' : ''} ${ctxCls(T[id].context)}`;
 const nodeSvg = (d, label) => `<g class="${nodeCls(d.id)}" data-id="${d.id}" transform="translate(${d.x.toFixed(1)},${d.y.toFixed(1)})"><circle r="7"></circle>${isCollision(d.id) ? '<circle class="ring" r="10"></circle>' : ''}<text x="0" y="19" text-anchor="middle">${esc(label)}</text></g>`;
 // Referenced-by left, refers-to right, co-mentioned along the bottom.
 function neighbourhood(id, W = 940) {
@@ -278,7 +285,7 @@ function sameWordBlock(id) {
   return `<div class="same"><h4>${isCollision(id) ? '⇄ Same entry, different meaning' : 'Same entry in another context, same shape'}</h4>${sw.map(x => `<div class="note ${isCollision(id) ? 'col' : ''}">${link(x)}${ctxChip(x)}<div class="small muted">${esc(textOf(T[x].definition))}</div></div>`).join('')}</div>`;
 }
 function decisionsBlock(id) {
-  return `<h4>Decisions touching this term (${adrsFor[id].length})</h4>` + (adrsFor[id].map(a => `<div class="note">${adrLink(a)} ${chip(a.context, CTX_NAME[a.context])}<div class="small muted">${esc(a.path)}</div></div>`).join('') || '<div class="muted">no ADR names this term</div>');
+  return `<h4>Decisions touching this term (${adrsFor[id].length})</h4>` + (adrsFor[id].map(a => `<div class="note">${adrLink(a)} ${chip(ctxCls(a.context), CTX_NAME[a.context])}<div class="small muted">${esc(a.path)}</div></div>`).join('') || '<div class="muted">no ADR names this term</div>');
 }
 function healthBlock(id) {
   const f = termFindings(id);
@@ -298,14 +305,14 @@ function termCard(id) {
 // Landing: every term as a chip, grouped by context and cluster.
 function landingHtml() {
   let h = '<div class="landing"><p class="muted">Pick a term to explore it with its neighbourhood. ⚠-bordered chips carry a flagged ambiguity.</p>';
-  for (const c of DATA.contexts) { h += `<h2>${esc(c.name)}${chip(c.key, c.key)}</h2>`; for (const cl of c.clusters) if (cl.terms.length) h += `<div class="cl"><h3>${esc(cl.name)}</h3>${cl.terms.map(id => link(id, isAmb(id) ? 'amb' : '')).join('')}</div>`; }
+  for (const c of DATA.contexts) { h += `<h2>${esc(c.name)}${chip(ctxCls(c.key), c.key)}</h2>`; for (const cl of c.clusters) if (cl.terms.length) h += `<div class="cl"><h3>${esc(cl.name)}</h3>${cl.terms.map(id => link(id, isAmb(id) ? 'amb' : '')).join('')}</div>`; }
   return h + '</div>';
 }
 // ------------------------------------------------------------------ index
 function navTree(nav) {
   let h = `<div class="tools"><a href="#check" data-id="check">Vocabulary check</a><a href="#health" data-id="health">Health report</a><a href="#map" data-id="map">Context map</a></div><input type="search" placeholder="filter index…" class="navFilter">`;
   for (const c of DATA.contexts) {
-    h += `<div class="ctx ${c.key}">${esc(c.name)}</div>`;
+    h += `<div class="ctx ${ctxCls(c.key)}">${esc(c.name)}</div>`;
     for (const cl of c.clusters) if (cl.terms.length) h += `<div class="cl">${esc(cl.name)} <span class="cnt">${cl.terms.length}</span></div>` + cl.terms.map(id => `<a class="item" href="#${id}" data-id="${id}">${isAmb(id) ? '⚠ ' : ''}${esc(T[id].name)}</a>`).join('');
   }
   if (DATA.adrs.length) h += `<div class="ctx extra">Decisions (ADRs)</div>` + DATA.adrs.map(a => `<a class="item" href="#${a.id}" data-id="${a.id}" title="${esc(a.title)}">${esc(a.title)}</a>`).join('');
@@ -421,24 +428,25 @@ function mapRow(e, y, lanes) {
   const span = defined.length ? defined : mentioned, xs = span.map(c => lanes[c]);
   let s = `<g class="mrow ${e.kind}" data-name="${esc(e.name)}">`;
   if (span.length > 1) s += `<line class="lk" x1="${Math.min(...xs)}" y1="${y}" x2="${Math.max(...xs)}" y2="${y}"/>`;
-  for (const c of mentioned) if (!defined.includes(c)) s += `<circle class="${c} faint" cx="${lanes[c]}" cy="${y}" r="2.5"/>`;
-  for (const c of defined) s += `<circle class="${c}" cx="${lanes[c]}" cy="${y}" r="5"/>`;
-  return s + `<text x="${lanes.workspace - 16}" y="${y + 4}" text-anchor="end">${esc(e.name)}</text><text x="${lanes.stacks + 16}" y="${y + 4}" class="elabel">${e.kind} · ${e.terms.length} terms</text></g>`;
+  for (const c of mentioned) if (!defined.includes(c)) s += `<circle class="${ctxCls(c)} faint" cx="${lanes[c]}" cy="${y}" r="2.5"/>`;
+  for (const c of defined) s += `<circle class="${ctxCls(c)}" cx="${lanes[c]}" cy="${y}" r="5"/>`;
+  return s + `<text x="${lanes[CTX_ORDER[0]] - 16}" y="${y + 4}" text-anchor="end">${esc(e.name)}</text><text x="${lanes[CTX_ORDER.at(-1)] + 16}" y="${y + 4}" class="elabel">${e.kind} · ${e.terms.length} terms</text></g>`;
 }
 function mapPage() {
-  const W = 940, lanes = { workspace: 200, common: 470, stacks: 740 }, rowH = 26;
+  const W = 940, rowH = 26, lanes = {};
+  CTX_ORDER.forEach((k, i) => lanes[k] = CTX_ORDER.length > 1 ? 200 + i * 540 / (CTX_ORDER.length - 1) : W / 2);
   const kinds = ['anchor', 'mirror', 'resolved', 'collision'];
   const rows = kinds.flatMap(k => DATA.map.filter(e => e.kind === k));
   const H = 50 + rows.length * rowH + 20;
   let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
   for (const k in lanes) svg += `<text class="lane" x="${lanes[k]}" y="22" text-anchor="middle">${CTX_NAME[k]}</text><line class="laneline" x1="${lanes[k]}" y1="32" x2="${lanes[k]}" y2="${H - 10}"/>`;
   rows.forEach((e, i) => svg += mapRow(e, 50 + i * rowH, lanes));
-  let h = `<div class="card"><h2>Context map · cross-context vocabulary</h2><p class="muted">Three contexts, and the entries in <code>GLOSSARY-MAP.md</code> that relate them. A filled dot marks a context that defines the word; a small faint dot marks one the entry only mentions. Click a row to open its text.</p><div class="mapsvg">${svg}</svg></div>`;
+  let h = `<div class="card"><h2>Context map · cross-context vocabulary</h2><p class="muted">${DATA.contexts.length} ${DATA.contexts.length === 1 ? 'context' : 'contexts'}, and the entries in <code>GLOSSARY-MAP.md</code> that relate them. A filled dot marks a context that defines the word; a small faint dot marks one the entry only mentions. Click a row to open its text.</p><div class="mapsvg">${svg}</svg></div>`;
   for (const k of kinds) {
     const es = DATA.map.filter(e => e.kind === k); if (!es.length) continue;
-    h += `<h4>${k} (${es.length})</h4><p class="small muted">${KIND_TEXT[k]}</p>` + es.map(e => `<details class="note map" data-name="${esc(e.name)}"><summary>${esc(e.name)} ${ctxsOf(e).map(c => chip(c, CTX_NAME[c])).join('')}</summary>${e.html}</details>`).join('');
+    h += `<h4>${k} (${es.length})</h4><p class="small muted">${KIND_TEXT[k]}</p>` + es.map(e => `<details class="note map" data-name="${esc(e.name)}"><summary>${esc(e.name)} ${ctxsOf(e).map(c => chip(ctxCls(c), CTX_NAME[c])).join('')}</summary>${e.html}</details>`).join('');
   }
-  h += `<h4>Decisions (${DATA.adrs.length})</h4><p class="small muted">ADRs in <code>docs/adr</code>, with the context whose vocabulary dominates each.</p><ul>${DATA.adrs.map(a => `<li>${adrLink(a)} ${chip(a.context, CTX_NAME[a.context])} <span class="muted small">${a.terms.length} terms</span></li>`).join('')}</ul></div>`;
+  h += `<h4>Decisions (${DATA.adrs.length})</h4><p class="small muted">ADRs in <code>docs/adr</code> and in each context's own <code>docs/adr</code>, with the context each belongs to or whose vocabulary dominates it.</p><ul>${DATA.adrs.map(a => `<li>${adrLink(a)} ${chip(ctxCls(a.context), CTX_NAME[a.context])} <span class="muted small">${a.terms.length} terms</span></li>`).join('')}</ul></div>`;
   return h;
 }
 function wireMap(body) {

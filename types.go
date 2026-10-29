@@ -2,10 +2,11 @@ package main
 
 // Context is one glossary file.
 type Context struct {
-	Key      string    `json:"key"`  // common | workspace | stacks
+	Key      string    `json:"key"`  // slug of Name; prefixes the context's term ids
 	Name     string    `json:"name"` // heading text
 	Path     string    `json:"path"`
-	Intro    string    `json:"intro"` // html
+	Shared   bool      `json:"shared"` // the root GLOSSARY.md: resolved right after a phrase's own context
+	Intro    string    `json:"intro"`  // html
 	Clusters []Cluster `json:"clusters"`
 }
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -31,6 +32,7 @@ type rawCluster struct {
 
 type rawContext struct {
 	key, name, path string
+	shared          bool // the root glossary
 	intro           []string
 	clusters        map[string]*rawCluster
 	clusterOrder    []string
@@ -67,12 +69,13 @@ func readLines(path string) ([]string, error) {
 }
 
 // parseContext reads one glossary file. displayPath is the path shown to readers; path is where it is read from.
-func parseContext(key, displayPath, path string) (*rawContext, error) {
+// The caller sets the key.
+func parseContext(displayPath, path string) (*rawContext, error) {
 	lines, err := readLines(path)
 	if err != nil {
 		return nil, fmt.Errorf("read glossary %s: %w", displayPath, err)
 	}
-	rc := &rawContext{key: key, path: displayPath, clusters: map[string]*rawCluster{}}
+	rc := &rawContext{path: displayPath, clusters: map[string]*rawCluster{}}
 	var h2, h3 string
 	section, cluster := "", ""
 	var cur *rawCluster
@@ -192,11 +195,36 @@ type rawMapEntry struct {
 
 var reAnchorLine = regexp.MustCompile(`^\*\*\[([^\]]+)\]\([^)]*\)\*\*\s*[—-]\s*(.*)$`)
 
-func parseMap(path string) ([]rawMapEntry, error) {
-	lines, err := readLines(path)
-	if err != nil {
-		return nil, fmt.Errorf("read context map: %w", err)
+// contextLink is one context the map's Contexts section links: "- [Name](path/to/GLOSSARY.md)".
+type contextLink struct {
+	name string
+	rel  string // slash-separated, relative to the repository root
+}
+
+var reContextLink = regexp.MustCompile(`^[-*] \[([^\]]+)\]\(([^)#\s]+)(?:#[^)]*)?\)`)
+
+// parseMapContexts reads the unindented bullets under "## Contexts" that open with a link to a glossary.
+func parseMapContexts(lines []string) []contextLink {
+	var out []contextLink
+	seen := map[string]bool{}
+	in := false
+	for _, ln := range lines {
+		if m := reH.FindStringSubmatch(ln); m != nil && len(m[1]) <= 2 {
+			in = len(m[1]) == 2 && strings.EqualFold(m[2], "Contexts")
+			continue
+		}
+		if m := reContextLink.FindStringSubmatch(ln); in && m != nil {
+			rel := path.Clean(m[2])
+			if path.Base(rel) == glossaryFile && !seen[rel] {
+				seen[rel] = true
+				out = append(out, contextLink{name: m[1], rel: rel})
+			}
+		}
 	}
+	return out
+}
+
+func parseMap(lines []string) []rawMapEntry {
 	var out []rawMapEntry
 	in := false
 	kind := ""
@@ -247,5 +275,5 @@ func parseMap(path string) ([]rawMapEntry, error) {
 			cur.body = append(cur.body, ln)
 		}
 	}
-	return out, nil
+	return out
 }

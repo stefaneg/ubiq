@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -20,12 +21,32 @@ type ADR struct {
 
 type rawADR struct {
 	path, title string
+	context     string // owning context for a context's own ADR; empty for a system-wide one
 	body        []string
 }
 
-// parseADRs reads every docs/adr/*.md under root. A missing directory yields no ADRs.
-func parseADRs(root string) ([]rawADR, error) {
-	paths, _ := filepath.Glob(filepath.Join(root, "docs", "adr", "*.md"))
+// parseADRs reads the system-wide docs/adr/*.md under root, then each context's own, from docs/adr beside its
+// glossary. A missing directory yields no ADRs.
+func parseADRs(root string, contexts []*rawContext) ([]rawADR, error) {
+	out, err := parseADRDir(root, "docs/adr", "")
+	if err != nil {
+		return nil, err
+	}
+	for _, rc := range contexts {
+		if dir := path.Dir(rc.path); dir != "." {
+			own, err := parseADRDir(root, path.Join(dir, "docs/adr"), rc.key)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, own...)
+		}
+	}
+	return out, nil
+}
+
+// parseADRDir reads every *.md in dir, a slash-separated path relative to root.
+func parseADRDir(root, dir, context string) ([]rawADR, error) {
+	paths, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(dir), "*.md"))
 	sort.Strings(paths)
 	var out []rawADR
 	for _, p := range paths {
@@ -34,7 +55,7 @@ func parseADRs(root string) ([]rawADR, error) {
 			return nil, fmt.Errorf("read ADR: %w", err)
 		}
 		rel, _ := filepath.Rel(root, p)
-		a := rawADR{path: filepath.ToSlash(rel)}
+		a := rawADR{path: filepath.ToSlash(rel), context: context}
 		for i, ln := range lines {
 			if m := reH.FindStringSubmatch(ln); m != nil && len(m[1]) == 1 && a.title == "" {
 				a.title = m[2]
@@ -117,25 +138,33 @@ func (r *Resolver) renderADRs(raws []rawADR) []ADR {
 		for i, ln := range a.body {
 			body[i] = r.autoBold(ln, names, res, found)
 		}
-		// home context: the core whose names appear most often; tie -> common
-		best, bestN := "common", 0
-		for _, k := range r.order {
-			if k == "common" {
-				continue
-			}
-			n := 0
-			for name := range found {
-				if _, ok := r.byContext[k][strings.ToLower(name)]; ok {
-					n++
-				}
-			}
-			if n > bestN {
-				best, bestN = k, n
-			}
+		best, id := a.context, "adr/"+a.context+"/"+strings.TrimSuffix(path.Base(a.path), ".md")
+		if best == "" {
+			best, id = r.homeContext(found), "adr/"+strings.TrimSuffix(path.Base(a.path), ".md")
 		}
 		h, ids := r.block(body, best, "ADR "+a.title)
-		id := "adr/" + strings.TrimSuffix(filepath.Base(a.path), ".md")
 		out = append(out, ADR{ID: id, Title: a.title, Path: a.path, Context: best, HTML: h, TermIDs: ids})
 	}
 	return out
+}
+
+// homeContext is the context whose names a system-wide ADR uses most, the shared context not counting. A tie goes
+// to the earlier context in resolution order, which starts with the shared one.
+func (r *Resolver) homeContext(found map[string]bool) string {
+	best, bestN := r.order[0], 0
+	for _, k := range r.order {
+		if k == r.shared {
+			continue
+		}
+		n := 0
+		for name := range found {
+			if _, ok := r.byContext[k][strings.ToLower(name)]; ok {
+				n++
+			}
+		}
+		if n > bestN {
+			best, bestN = k, n
+		}
+	}
+	return best
 }

@@ -1,0 +1,172 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestLoadModelReadsTheContextsTheMapLinks(t *testing.T) {
+	model := loadFixture(t)
+	var keys, paths []string
+	for _, c := range model.Contexts {
+		keys = append(keys, c.Key)
+		paths = append(paths, c.Path)
+	}
+	assert.Equal(t, []string{"common", "workspace", "stacks"}, keys, "the root glossary first, then map order")
+	assert.Equal(t, []string{"GLOSSARY.md", "internal/workspace/GLOSSARY.md", "internal/stacks/GLOSSARY.md"}, paths)
+	assert.True(t, model.Contexts[0].Shared)
+	assert.False(t, model.Contexts[1].Shared)
+}
+
+func TestLoadModelWithoutAMapReadsTheRootGlossaryAsTheOnlyContext(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"GLOSSARY.md": `# Ordering
+
+## Language
+
+**Order**:
+A request for goods by a **Customer**.
+
+**Customer**:
+A person who places an **Order**.
+`,
+		"docs/adr/0001-orders-are-immutable.md": "# Orders are immutable\n\nAn Order never changes once placed.\n",
+	})
+	model, err := LoadModel(root)
+	require.NoError(t, err)
+	require.Len(t, model.Contexts, 1)
+	assert.Equal(t, "ordering", model.Contexts[0].Key)
+	assert.Equal(t, "GLOSSARY.md", model.Contexts[0].Path)
+	assert.Equal(t, []string{"ordering/customer"}, model.Terms["ordering/order"].Refs)
+	require.Len(t, model.ADRs, 1)
+	assert.Equal(t, "ordering", model.ADRs[0].Context)
+	assert.Equal(t, []string{"ordering/order"}, model.ADRs[0].TermIDs)
+}
+
+// contextsOnlyRoot is a multi-context repo laid out as the domain-modeling skill shows it: no root glossary, one
+// GLOSSARY.md and docs/adr per context.
+func contextsOnlyRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"GLOSSARY-MAP.md": `# Glossary Map
+
+## Contexts
+
+- [Ordering](./src/ordering/GLOSSARY.md): receives and tracks customer orders
+- [Billing](./src/billing/GLOSSARY.md): generates invoices
+
+## Relationships
+
+- **Ordering → Billing**: Ordering emits events Billing consumes.
+
+## Cross-context vocabulary
+
+### Deliberate mirrors
+
+#### Customer
+
+- Billing: a **Customer** receives an **Invoice**.
+- Ordering: a **Customer** places an **Order**.
+`,
+		"src/ordering/GLOSSARY.md": `# Ordering
+
+## Language
+
+**Order**:
+A request for goods by a **Customer**.
+
+**Customer**:
+A person who places an **Order**.
+`,
+		"src/billing/GLOSSARY.md": `# Billing
+
+## Language
+
+**Invoice**:
+A request for payment sent to a **Customer**.
+
+**Customer**:
+A person or organisation that pays an **Invoice**.
+`,
+		"docs/adr/0001-bill-on-shipment.md":              "# Bill on shipment\n\nAn Invoice is raised for a Customer once goods ship.\n",
+		"src/ordering/docs/adr/0001-orders-are-final.md": "# Orders are final\n\nA Customer cannot amend an Order.\n",
+	})
+	return root
+}
+
+func TestLoadModelWithoutARootGlossaryKeepsMapOrder(t *testing.T) {
+	model, err := LoadModel(contextsOnlyRoot(t))
+	require.NoError(t, err)
+	require.Len(t, model.Contexts, 2)
+	assert.Equal(t, "ordering", model.Contexts[0].Key)
+	assert.Equal(t, "src/ordering/GLOSSARY.md", model.Contexts[0].Path)
+	assert.False(t, model.Contexts[0].Shared)
+	assert.Equal(t, "billing", model.Contexts[1].Key)
+	assert.Empty(t, model.Unresolved, "the map's Relationships section is not read as vocabulary")
+}
+
+func TestMapBulletsNamingAnyContextResolveInIt(t *testing.T) {
+	model, err := LoadModel(contextsOnlyRoot(t))
+	require.NoError(t, err)
+	require.Len(t, model.MapEntries, 1)
+	entry := model.MapEntries[0].HTML
+	assert.Contains(t, entry, `data-id="billing/customer"`)
+	assert.Contains(t, entry, `data-id="ordering/customer"`)
+}
+
+func TestLoadModelReadsEachContextsOwnADRs(t *testing.T) {
+	model, err := LoadModel(contextsOnlyRoot(t))
+	require.NoError(t, err)
+	adrs := map[string]ADR{}
+	for _, a := range model.ADRs {
+		adrs[a.ID] = a
+	}
+	require.Len(t, adrs, 2)
+	system := adrs["adr/0001-bill-on-shipment"]
+	assert.Equal(t, "docs/adr/0001-bill-on-shipment.md", system.Path)
+	assert.Equal(t, "billing", system.Context, "the context whose names dominate a system-wide ADR")
+	own := adrs["adr/ordering/0001-orders-are-final"]
+	assert.Equal(t, "src/ordering/docs/adr/0001-orders-are-final.md", own.Path)
+	assert.Equal(t, "ordering", own.Context, "a context's own ADR stays in that context")
+	assert.Equal(t, []string{"ordering/customer", "ordering/order"}, own.TermIDs)
+}
+
+func TestLoadModelErrors(t *testing.T) {
+	for name, tc := range map[string]struct {
+		files map[string]string
+		want  string
+	}{
+		"no glossary": {
+			files: map[string]string{"README.md": "# Readme\n"},
+			want:  "no GLOSSARY-MAP.md or GLOSSARY.md",
+		},
+		"map without contexts": {
+			files: map[string]string{"GLOSSARY-MAP.md": "# Map\n\n## Contexts\n\nNone yet.\n"},
+			want:  "GLOSSARY-MAP.md links no context glossary under ## Contexts",
+		},
+		"missing context glossary": {
+			files: map[string]string{"GLOSSARY-MAP.md": "# Map\n\n## Contexts\n\n- [Ordering](src/ordering/GLOSSARY.md)\n"},
+			want:  "read glossary src/ordering/GLOSSARY.md",
+		},
+		"two contexts with one name": {
+			files: map[string]string{
+				"GLOSSARY-MAP.md": "# Map\n\n## Contexts\n\n- [A](a/GLOSSARY.md)\n- [B](b/GLOSSARY.md)\n",
+				"a/GLOSSARY.md":   "# Sales\n",
+				"b/GLOSSARY.md":   "# Sales\n",
+			},
+			want: `b/GLOSSARY.md: context key "sales" is already used by a/GLOSSARY.md`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			writeTree(t, root, tc.files)
+			_, err := LoadModel(root)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
+}
