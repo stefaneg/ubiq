@@ -52,7 +52,8 @@ type Resolver struct {
 	model     *Model
 	order     []string // resolution order after a phrase's own context: map order
 	file      string   // the file being rendered, recorded on unresolved phrases
-	lenient   bool     // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
+	mentions  *mentions
+	lenient   bool // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
 }
 
 func slug(s string) string {
@@ -336,7 +337,8 @@ func build(contexts []*rawContext, rels []rawRelationship, adrs []rawADR) *Model
 			}
 		}
 	}
-	// pass 2: render
+	// pass 2: render, linking capitalised mentions as if they were bold
+	r.mentions = newMentions(m.Terms)
 	for _, rc := range contexts {
 		r.file = rc.path
 		intro, _ := r.block(rc.intro, rc.key, rc.name+" intro")
@@ -348,7 +350,8 @@ func build(contexts []*rawContext, rels []rawRelationship, adrs []rawADR) *Model
 			for _, t := range cl.terms {
 				id := rc.key + "/" + slug(t.name)
 				term := m.Terms[id]
-				term.Definition, term.Refs = r.inline(t.def, rc.key, t.name)
+				term.Definition, term.Refs = r.inline(r.mentions.bold(t.def, t.name), rc.key, t.name)
+				term.Refs = without(term.Refs, id)
 				cc.TermIDs = append(cc.TermIDs, id)
 			}
 			if len(cc.TermIDs) > 0 {
@@ -386,8 +389,19 @@ func (r *Resolver) renderRelationships(contexts []*rawContext, rels []rawRelatio
 		if len(cr.Contexts) > 0 {
 			ctx = cr.Contexts[0]
 		}
-		cr.HTML, cr.TermIDs = r.inline(rel.text, ctx, "relationship "+rel.label)
+		cr.HTML, cr.TermIDs = r.inline(r.mentions.bold(rel.text, ""), ctx, "relationship "+rel.label)
 		out = append(out, cr)
+	}
+	return out
+}
+
+// without returns ids less id.
+func without(ids []string, id string) []string {
+	out := ids[:0]
+	for _, x := range ids {
+		if x != id {
+			out = append(out, x)
+		}
 	}
 	return out
 }

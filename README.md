@@ -43,7 +43,8 @@ GLOSSARY.md: unresolved: Beat Warning: Course Video Manager: Beat
 It applies four rules:
 
 - `long`: the definition is longer than two sentences.
-- `orphan`: no other term's definition and no context relationship refers to the term. ADRs do not count.
+- `orphan`: no other term's definition and no context relationship refers to the term. A reference is the term's
+  name in bold, or written as defined when the name starts with a capital letter. ADRs do not count.
 - `unmapped`: two contexts define the same name.
 - `unresolved`: a bold phrase matches no entry. The note names the context and the term where the phrase appears.
   An unresolved finding has no line number.

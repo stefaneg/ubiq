@@ -26,7 +26,7 @@ type Term struct {
 	Definition string   `json:"definition"` // html with resolved term links
 	Avoid      string   `json:"avoid"`      // the Avoid line as written
 	Redirects  []string `json:"redirects"`  // avoided words that name a synonym, see Term.redirects
-	Refs       []string `json:"refs"`       // outbound term ids from the definition
+	Refs       []string `json:"refs"`       // other terms the definition refers to, in bold or capitalised
 	Line       int      `json:"line"`
 }
 
