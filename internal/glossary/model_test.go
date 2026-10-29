@@ -1,14 +1,17 @@
-package main
+package glossary_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stefaneg/ubiq/internal/glossary"
+	"github.com/stefaneg/ubiq/internal/glossarytest"
 )
 
-func TestLoadModelParsesTermsWithClusterAvoidAndLine(t *testing.T) {
-	model := loadFixture(t)
+func TestLoadParsesTermsWithClusterAvoidAndLine(t *testing.T) {
+	model := glossarytest.Load(t)
 	tag := model.Terms["common/tag"]
 	require.NotNil(t, tag)
 	assert.Equal(t, "Tag", tag.Name)
@@ -20,14 +23,14 @@ func TestLoadModelParsesTermsWithClusterAvoidAndLine(t *testing.T) {
 }
 
 func TestRedirectsDropShortFormsOfTheTermName(t *testing.T) {
-	model := loadFixture(t)
+	model := glossarytest.Load(t)
 	assert.Equal(t, []string{"image reference"}, model.Terms["common/image-ref"].Redirects)
 	assert.Equal(t, []string{"repo", "path"}, model.Terms["common/repository"].Redirects)
 	assert.Equal(t, []string{"container image", "image name"}, model.Terms["workspace/image"].Redirects)
 }
 
 func TestDefinitionLinksResolveOwnContextThenCommonThenOtherCore(t *testing.T) {
-	model := loadFixture(t)
+	model := glossarytest.Load(t)
 	stackImage := model.Terms["stacks/stack-image"]
 	assert.Equal(t, []string{"stacks/stack", "workspace/image"}, stackImage.Refs)
 	assert.Contains(t, stackImage.Definition, `<a class="t" href="#workspace/image" data-id="workspace/image">Image</a>`)
@@ -35,7 +38,7 @@ func TestDefinitionLinksResolveOwnContextThenCommonThenOtherCore(t *testing.T) {
 }
 
 func TestPluralBoldPhrasesResolveToTheSingularTerm(t *testing.T) {
-	model := loadFixture(t)
+	model := glossarytest.Load(t)
 	rel := model.Notes[0]
 	assert.Equal(t, "relationship", rel.Kind)
 	assert.Equal(t, "Image References", rel.Cluster)
@@ -43,17 +46,17 @@ func TestPluralBoldPhrasesResolveToTheSingularTerm(t *testing.T) {
 }
 
 func TestUnresolvedBoldPhrasesAreMarkedAndListed(t *testing.T) {
-	model := loadFixture(t)
+	model := glossarytest.Load(t)
 	amb := model.Notes[1]
 	assert.Equal(t, "ambiguity", amb.Kind)
 	assert.Contains(t, amb.HTML, `<span class="unres">Label</span>`)
 	require.Len(t, model.Unresolved, 1)
-	assert.Equal(t, Unresolved{Phrase: "Label", Context: "common", Where: "Image References ambiguities"}, model.Unresolved[0])
+	assert.Equal(t, glossary.Unresolved{Phrase: "Label", Context: "common", Where: "Image References ambiguities"}, model.Unresolved[0])
 }
 
 func TestHeadNounPluralsResolveToTheirTerm(t *testing.T) {
-	model := loadFixture(t)
-	var rel Note
+	model := glossarytest.Load(t)
+	var rel glossary.Note
 	for _, n := range model.Notes {
 		if n.Context == "common" && n.Cluster == "Run Tracking" && n.Kind == "relationship" {
 			rel = n
@@ -64,8 +67,8 @@ func TestHeadNounPluralsResolveToTheirTerm(t *testing.T) {
 }
 
 func TestCoreFileTopLevelAmbiguitiesLandInGeneral(t *testing.T) {
-	model := loadFixture(t)
-	var general []Note
+	model := glossarytest.Load(t)
+	var general []glossary.Note
 	for _, n := range model.Notes {
 		if n.Context == "workspace" && n.Kind == "ambiguity" {
 			general = append(general, n)
@@ -77,7 +80,7 @@ func TestCoreFileTopLevelAmbiguitiesLandInGeneral(t *testing.T) {
 }
 
 func TestContextMapEntriesCarryKindAndHeadingTerms(t *testing.T) {
-	model := loadFixture(t)
+	model := glossarytest.Load(t)
 	require.Len(t, model.MapEntries, 3)
 	run, tag, anchor := model.MapEntries[0], model.MapEntries[1], model.MapEntries[2]
 	assert.Equal(t, "mirror", run.Kind)
@@ -90,14 +93,14 @@ func TestContextMapEntriesCarryKindAndHeadingTerms(t *testing.T) {
 }
 
 func TestTablesAndTrailingParagraphsNestInsideTheirBullet(t *testing.T) {
-	model := loadFixture(t)
+	model := glossarytest.Load(t)
 	html := model.MapEntries[0].HTML
 	assert.Contains(t, html, `<table class="md"><tr><th>Phase</th><th>Default</th></tr><tr><td>pre</td><td><code>true</code></td></tr></table>`)
 	assert.Contains(t, html, `<p>Trailing note inside the bullet.</p></li></ul>`)
 }
 
 func TestADRsLinkGlossaryNamesAndKeepBoldSentencesPlain(t *testing.T) {
-	model := loadFixture(t)
+	model := glossarytest.Load(t)
 	require.Len(t, model.ADRs, 1)
 	adr := model.ADRs[0]
 	assert.Equal(t, "adr/0001-pin-tags", adr.ID)
@@ -112,8 +115,8 @@ func TestADRsLinkGlossaryNamesAndKeepBoldSentencesPlain(t *testing.T) {
 	assert.Len(t, model.Unresolved, 1, "ADR bold is emphasis, never reported")
 }
 
-func TestLoadModelReportsAMissingGlossary(t *testing.T) {
-	_, err := LoadModel(t.TempDir())
+func TestLoadReportsAMissingGlossary(t *testing.T) {
+	_, err := glossary.Load(t.TempDir())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "GLOSSARY.md")
 }

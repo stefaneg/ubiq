@@ -1,4 +1,5 @@
-package main
+// Package glossary builds the glossary Model from a repository's GLOSSARY.md files, GLOSSARY-MAP.md and ADRs.
+package glossary
 
 // Context is one glossary file.
 type Context struct {
@@ -67,4 +68,14 @@ type Model struct {
 	MapEntries []MapEntry       `json:"map"`
 	Unresolved []Unresolved     `json:"unresolved"`
 	ADRs       []ADR            `json:"adrs"`
+}
+
+// ContextName is the heading of the context with key, or the key when the model has no such context.
+func (m *Model) ContextName(key string) string {
+	for _, c := range m.Contexts {
+		if c.Key == key {
+			return c.Name
+		}
+	}
+	return key
 }

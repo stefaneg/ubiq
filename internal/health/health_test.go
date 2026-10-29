@@ -1,12 +1,14 @@
-package main
+package health
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stefaneg/ubiq/internal/glossary"
+	"github.com/stefaneg/ubiq/internal/glossarytest"
 )
 
 func TestSentencesIgnoresAbbreviationsAndTrailingSpace(t *testing.T) {
@@ -18,22 +20,22 @@ func TestSentencesIgnoresAbbreviationsAndTrailingSpace(t *testing.T) {
 	assert.Equal(t, 1, sentences("Reads v1.2.3 as a tag."))
 }
 
-func TestHealthAppliesThePageRulesAndSortsByFileAndLine(t *testing.T) {
-	findings := Health(loadFixture(t))
-	assert.Equal(t, []HealthFinding{
+func TestCheckAppliesThePageRulesAndSortsByFileAndLine(t *testing.T) {
+	findings := Check(glossarytest.Load(t))
+	assert.Equal(t, []Finding{
 		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Label", Note: "Common: Image References ambiguities"},
 		{Path: "GLOSSARY.md", Line: 15, Rule: "long", Name: "Tag", Note: "3 sentences"},
 	}, findings, "file-level findings first, then by line; Repository is named by Tag's definition")
 }
 
-func TestHealthReportsAnOrphanThatOnlyAnADRMentions(t *testing.T) {
-	model := loadFixture(t)
+func TestCheckReportsAnOrphanThatOnlyAnADRMentions(t *testing.T) {
+	model := glossarytest.Load(t)
 	for id := range model.Terms {
 		model.Terms[id].Refs = nil
 	}
 	model.Notes, model.MapEntries = nil, nil
 	var orphans []string
-	for _, f := range Health(model) {
+	for _, f := range Check(model) {
 		if f.Rule == "orphan" {
 			orphans = append(orphans, f.Name)
 		}
@@ -42,49 +44,39 @@ func TestHealthReportsAnOrphanThatOnlyAnADRMentions(t *testing.T) {
 	assert.Len(t, orphans, len(model.Terms))
 }
 
-func TestHealthReportsTwoContextsSharingANameTheMapDoesNotList(t *testing.T) {
-	model := loadFixture(t)
+func TestCheckReportsTwoContextsSharingANameTheMapDoesNotList(t *testing.T) {
+	model := glossarytest.Load(t)
 	model.MapEntries = model.MapEntries[1:] // drop the Run mirror
-	var unmapped []HealthFinding
-	for _, f := range Health(model) {
+	var unmapped []Finding
+	for _, f := range Check(model) {
 		if f.Rule == "unmapped" {
 			unmapped = append(unmapped, f)
 		}
 	}
 	require.Len(t, unmapped, 2)
-	assert.Equal(t, HealthFinding{Path: "GLOSSARY.md", Line: 35, Rule: "unmapped", Name: "Run", Note: "also in Workspace"}, unmapped[0])
+	assert.Equal(t, Finding{Path: "GLOSSARY.md", Line: 35, Rule: "unmapped", Name: "Run", Note: "also in Workspace"}, unmapped[0])
 	assert.Equal(t, "internal/workspace/GLOSSARY.md", unmapped[1].Path)
 	assert.Equal(t, "also in Common", unmapped[1].Note)
 }
 
-func TestRunHealthPrintsFindingsAndExitsOne(t *testing.T) {
-	root := fixtureRoot(t)
-	var out, status bytes.Buffer
-	err := run([]string{"health", "-root", root}, nil, &out, &status)
-	require.True(t, errors.Is(err, errHealthFindings))
-	assert.Equal(t, "GLOSSARY.md: unresolved: Label: Common: Image References ambiguities\n"+
-		"GLOSSARY.md:15: long: Tag: 3 sentences\n", out.String())
-	assert.Equal(t, "2 findings over 10 terms: 1 long, 0 orphan, 0 unmapped, 1 unresolved\n", status.String())
-}
-
-func TestRunHealthIsSilentAndSucceedsWhenClean(t *testing.T) {
+func TestCheckIsSilentWhenClean(t *testing.T) {
 	var out bytes.Buffer
-	findings := Health(&Model{Terms: map[string]*Term{"common/run": {ID: "common/run", Name: "Run", Definition: "One invocation."}},
-		Notes: []Note{{Kind: "relationship", TermIDs: []string{"common/run"}}}})
+	findings := Check(&glossary.Model{Terms: map[string]*glossary.Term{"common/run": {ID: "common/run", Name: "Run", Definition: "One invocation."}},
+		Notes: []glossary.Note{{Kind: "relationship", TermIDs: []string{"common/run"}}}})
 	assert.Empty(t, findings)
-	WriteHealth(&out, findings)
+	Write(&out, findings)
 	assert.Empty(t, out.String())
-	assert.Equal(t, "0 findings over 1 terms: 0 long, 0 orphan, 0 unmapped, 0 unresolved", healthSummary(findings, 1))
+	assert.Equal(t, "0 findings over 1 terms: 0 long, 0 orphan, 0 unmapped, 0 unresolved", Summary(findings, 1))
 }
 
-func TestHealthNamesContextsByTheirHeading(t *testing.T) {
+func TestCheckNamesContextsByTheirHeading(t *testing.T) {
 	root := t.TempDir()
-	writeTree(t, root, map[string]string{
+	glossarytest.WriteTree(t, root, map[string]string{
 		"GLOSSARY.md": "# Course Video Manager\n\n## Language\n\n**Clip**:\nA cut of a **Take**.\n",
 	})
-	model, err := LoadModel(root)
+	model, err := glossary.Load(root)
 	require.NoError(t, err)
-	findings := Health(model)
+	findings := Check(model)
 	require.Len(t, findings, 2)
 	assert.Equal(t, "Course Video Manager: Clip", findings[0].Note)
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,10 +10,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stefaneg/ubiq/internal/glossarytest"
 )
 
 func TestRunHTMLWritesASelfContainedPage(t *testing.T) {
-	root := fixtureRoot(t)
+	root := glossarytest.Root(t)
 	out := filepath.Join(root, "glossary.html")
 	var status bytes.Buffer
 	require.NoError(t, run([]string{"html", "-root", root, "-out", out}, nil, nil, &status))
@@ -25,14 +28,14 @@ func TestRunHTMLWritesASelfContainedPage(t *testing.T) {
 }
 
 func TestRunCheckReadsStdin(t *testing.T) {
-	root := fixtureRoot(t)
+	root := glossarytest.Root(t)
 	var out bytes.Buffer
 	require.NoError(t, run([]string{"check", "-root", root}, strings.NewReader("fix the Image"), &out, nil))
 	assert.Contains(t, out.String(), "terms recognised: Image (Workspace)\n")
 }
 
 func TestRunCheckReadsFilesAndPassesCleanText(t *testing.T) {
-	root := fixtureRoot(t)
+	root := glossarytest.Root(t)
 	msg := filepath.Join(root, "msg.txt")
 	require.NoError(t, os.WriteFile(msg, []byte("rebuild the Image"), 0o644))
 	var out bytes.Buffer
@@ -44,4 +47,14 @@ func TestRunRejectsAnUnknownCommand(t *testing.T) {
 	err := run([]string{"frobnicate"}, nil, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "usage:")
+}
+
+func TestRunHealthPrintsFindingsAndExitsOne(t *testing.T) {
+	root := glossarytest.Root(t)
+	var out, status bytes.Buffer
+	err := run([]string{"health", "-root", root}, nil, &out, &status)
+	require.True(t, errors.Is(err, errHealthFindings))
+	assert.Equal(t, "GLOSSARY.md: unresolved: Label: Common: Image References ambiguities\n"+
+		"GLOSSARY.md:15: long: Tag: 3 sentences\n", out.String())
+	assert.Equal(t, "2 findings over 10 terms: 1 long, 0 orphan, 0 unmapped, 1 unresolved\n", status.String())
 }

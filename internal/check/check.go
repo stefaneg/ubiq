@@ -1,4 +1,4 @@
-package main
+package check
 
 import (
 	"fmt"
@@ -6,11 +6,13 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/stefaneg/ubiq/internal/glossary"
 )
 
 // Checker matches free text against glossary term names.
 type Checker struct {
-	model   *Model
+	model   *glossary.Model
 	entries map[string][]string // lowercase term name -> term IDs
 	re      *regexp.Regexp
 }
@@ -26,14 +28,14 @@ type Finding struct {
 type Report struct {
 	Terms      []Finding // glossary terms recognised
 	Candidates []Finding // Capitalised Phrases with no entry
-	model      *Model
+	model      *glossary.Model
 }
 
 var reCandidate = regexp.MustCompile(`(^|[^\w-])([A-Z][a-z]+(?:[- ][A-Z][a-z]+)+)($|[^\w-])`)
 
-// NewChecker indexes every term name and the head-noun plurals of "<head> of <rest>" names, longest
+// New indexes every term name and the head-noun plurals of "<head> of <rest>" names, longest
 // phrase first.
-func NewChecker(model *Model) *Checker {
+func New(model *glossary.Model) *Checker {
 	c := &Checker{model: model, entries: map[string][]string{}}
 	for _, t := range model.Terms {
 		key := strings.ToLower(strings.TrimSpace(t.Name))
@@ -42,7 +44,7 @@ func NewChecker(model *Model) *Checker {
 	phrases := make([]string, 0, len(c.entries))
 	for p := range c.entries {
 		phrases = append(phrases, p)
-		phrases = append(phrases, headPlurals(p)...)
+		phrases = append(phrases, glossary.HeadPlurals(p)...)
 	}
 	sort.Slice(phrases, func(i, j int) bool {
 		if len(phrases[i]) != len(phrases[j]) {
@@ -99,7 +101,7 @@ func (c *Checker) lookup(written string) []string {
 	if ids, ok := c.entries[key]; ok {
 		return ids
 	}
-	for _, s := range singulars(key) {
+	for _, s := range glossary.Singulars(key) {
 		if ids, ok := c.entries[s]; ok {
 			return ids
 		}
@@ -132,7 +134,7 @@ func (r *Report) termList(ids []string) string {
 	parts := make([]string, len(ids))
 	for i, id := range ids {
 		t := r.model.Terms[id]
-		parts[i] = fmt.Sprintf("%s (%s)", t.Name, r.model.contextName(t.Context))
+		parts[i] = fmt.Sprintf("%s (%s)", t.Name, r.model.ContextName(t.Context))
 	}
 	return strings.Join(parts, "; ")
 }
@@ -168,14 +170,4 @@ func (r *Report) distinctWritten(fs []Finding) string {
 		return "none"
 	}
 	return strings.Join(out, ", ")
-}
-
-// contextName is the heading of the context with key, or the key when the model has no such context.
-func (m *Model) contextName(key string) string {
-	for _, c := range m.Contexts {
-		if c.Key == key {
-			return c.Name
-		}
-	}
-	return key
 }

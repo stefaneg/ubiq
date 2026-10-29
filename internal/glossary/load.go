@@ -1,4 +1,4 @@
-package main
+package glossary
 
 import (
 	"errors"
@@ -15,10 +15,10 @@ const (
 	glossaryFile = "GLOSSARY.md"
 )
 
-// LoadModel parses the glossaries, the context map and the ADRs found under root, laid out as the domain-modeling
+// Load parses the glossaries, the context map and the ADRs found under root, laid out as the domain-modeling
 // skill describes. With a GLOSSARY-MAP.md, the contexts are the glossaries its Contexts section links; without one,
 // the root GLOSSARY.md is the only context.
-func LoadModel(root string) (*Model, error) {
+func Load(root string) (*Model, error) {
 	links, mapLines, err := contextLinks(root)
 	if err != nil {
 		return nil, err

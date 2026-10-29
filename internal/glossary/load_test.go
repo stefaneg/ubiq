@@ -1,14 +1,17 @@
-package main
+package glossary_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stefaneg/ubiq/internal/glossary"
+	"github.com/stefaneg/ubiq/internal/glossarytest"
 )
 
-func TestLoadModelReadsTheContextsTheMapLinks(t *testing.T) {
-	model := loadFixture(t)
+func TestLoadReadsTheContextsTheMapLinks(t *testing.T) {
+	model := glossarytest.Load(t)
 	var keys, paths []string
 	for _, c := range model.Contexts {
 		keys = append(keys, c.Key)
@@ -20,9 +23,9 @@ func TestLoadModelReadsTheContextsTheMapLinks(t *testing.T) {
 	assert.False(t, model.Contexts[1].Shared)
 }
 
-func TestLoadModelWithoutAMapReadsTheRootGlossaryAsTheOnlyContext(t *testing.T) {
+func TestLoadWithoutAMapReadsTheRootGlossaryAsTheOnlyContext(t *testing.T) {
 	root := t.TempDir()
-	writeTree(t, root, map[string]string{
+	glossarytest.WriteTree(t, root, map[string]string{
 		"GLOSSARY.md": `# Ordering
 
 ## Language
@@ -35,7 +38,7 @@ A person who places an **Order**.
 `,
 		"docs/adr/0001-orders-are-immutable.md": "# Orders are immutable\n\nAn Order never changes once placed.\n",
 	})
-	model, err := LoadModel(root)
+	model, err := glossary.Load(root)
 	require.NoError(t, err)
 	require.Len(t, model.Contexts, 1)
 	assert.Equal(t, "ordering", model.Contexts[0].Key)
@@ -51,7 +54,7 @@ A person who places an **Order**.
 func contextsOnlyRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	writeTree(t, root, map[string]string{
+	glossarytest.WriteTree(t, root, map[string]string{
 		"GLOSSARY-MAP.md": `# Glossary Map
 
 ## Contexts
@@ -98,8 +101,8 @@ A person or organisation that pays an **Invoice**.
 	return root
 }
 
-func TestLoadModelWithoutARootGlossaryKeepsMapOrder(t *testing.T) {
-	model, err := LoadModel(contextsOnlyRoot(t))
+func TestLoadWithoutARootGlossaryKeepsMapOrder(t *testing.T) {
+	model, err := glossary.Load(contextsOnlyRoot(t))
 	require.NoError(t, err)
 	require.Len(t, model.Contexts, 2)
 	assert.Equal(t, "ordering", model.Contexts[0].Key)
@@ -110,7 +113,7 @@ func TestLoadModelWithoutARootGlossaryKeepsMapOrder(t *testing.T) {
 }
 
 func TestMapBulletsNamingAnyContextResolveInIt(t *testing.T) {
-	model, err := LoadModel(contextsOnlyRoot(t))
+	model, err := glossary.Load(contextsOnlyRoot(t))
 	require.NoError(t, err)
 	require.Len(t, model.MapEntries, 1)
 	entry := model.MapEntries[0].HTML
@@ -118,10 +121,10 @@ func TestMapBulletsNamingAnyContextResolveInIt(t *testing.T) {
 	assert.Contains(t, entry, `data-id="ordering/customer"`)
 }
 
-func TestLoadModelReadsEachContextsOwnADRs(t *testing.T) {
-	model, err := LoadModel(contextsOnlyRoot(t))
+func TestLoadReadsEachContextsOwnADRs(t *testing.T) {
+	model, err := glossary.Load(contextsOnlyRoot(t))
 	require.NoError(t, err)
-	adrs := map[string]ADR{}
+	adrs := map[string]glossary.ADR{}
 	for _, a := range model.ADRs {
 		adrs[a.ID] = a
 	}
@@ -135,7 +138,7 @@ func TestLoadModelReadsEachContextsOwnADRs(t *testing.T) {
 	assert.Equal(t, []string{"ordering/customer", "ordering/order"}, own.TermIDs)
 }
 
-func TestLoadModelErrors(t *testing.T) {
+func TestLoadErrors(t *testing.T) {
 	for name, tc := range map[string]struct {
 		files map[string]string
 		want  string
@@ -163,8 +166,8 @@ func TestLoadModelErrors(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
-			writeTree(t, root, tc.files)
-			_, err := LoadModel(root)
+			glossarytest.WriteTree(t, root, tc.files)
+			_, err := glossary.Load(root)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.want)
 		})

@@ -1,4 +1,4 @@
-package main
+package health
 
 import (
 	"fmt"
@@ -7,10 +7,12 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/stefaneg/ubiq/internal/glossary"
 )
 
-// HealthFinding is one glossary entry or phrase that breaks a health rule.
-type HealthFinding struct {
+// Finding is one glossary entry or phrase that breaks a health rule.
+type Finding struct {
 	Path string // glossary file
 	Line int    // term line; 0 for an unresolved phrase
 	Rule string // long | orphan | unmapped | unresolved
@@ -18,13 +20,13 @@ type HealthFinding struct {
 	Note string
 }
 
-// Health applies the page's health rules to the model and returns the findings sorted by file, line and rule.
+// Check applies the page's health rules to the model and returns the findings sorted by file, line and rule.
 //
 //	long       definition longer than two sentences
 //	orphan     no definition, relationship bullet, ambiguity or map entry refers to the term (ADRs do not count)
 //	unmapped   an entry name defined in two contexts that the map does not name
 //	unresolved a bold phrase with no entry
-func Health(model *Model) []HealthFinding {
+func Check(model *glossary.Model) []Finding {
 	paths := map[string]string{}
 	for _, c := range model.Contexts {
 		paths[c.Key] = c.Path
@@ -49,9 +51,9 @@ func Health(model *Model) []HealthFinding {
 			mapped[id]++
 		}
 	}
-	var out []HealthFinding
-	add := func(t *Term, rule, note string) {
-		out = append(out, HealthFinding{Path: paths[t.Context], Line: t.Line, Rule: rule, Name: t.Name, Note: note})
+	var out []Finding
+	add := func(t *glossary.Term, rule, note string) {
+		out = append(out, Finding{Path: paths[t.Context], Line: t.Line, Rule: rule, Name: t.Name, Note: note})
 	}
 	for id, t := range model.Terms {
 		if n := sentences(plainText(t.Definition)); n > 2 {
@@ -69,7 +71,7 @@ func Health(model *Model) []HealthFinding {
 			var others []string
 			for _, other := range byName[key] {
 				if other != id {
-					others = append(others, model.contextName(model.Terms[other].Context))
+					others = append(others, model.ContextName(model.Terms[other].Context))
 				}
 			}
 			sort.Strings(others)
@@ -77,8 +79,8 @@ func Health(model *Model) []HealthFinding {
 		}
 	}
 	for _, u := range model.Unresolved {
-		out = append(out, HealthFinding{Path: paths[u.Context], Rule: "unresolved", Name: u.Phrase,
-			Note: model.contextName(u.Context) + ": " + u.Where})
+		out = append(out, Finding{Path: paths[u.Context], Rule: "unresolved", Name: u.Phrase,
+			Note: model.ContextName(u.Context) + ": " + u.Where})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
@@ -133,9 +135,9 @@ func sentences(s string) int {
 func isLetter(c byte) bool { return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' }
 func isSpace(c byte) bool  { return c == ' ' || c == '\n' || c == '\t' || c == '\r' }
 
-// WriteHealth prints one finding per line as "path:line: rule: name: note"; the line number is omitted when the
+// Write prints one finding per line as "path:line: rule: name: note"; the line number is omitted when the
 // finding has none.
-func WriteHealth(w io.Writer, findings []HealthFinding) {
+func Write(w io.Writer, findings []Finding) {
 	for _, f := range findings {
 		if f.Line > 0 {
 			fmt.Fprintf(w, "%s:%d: %s: %s: %s\n", f.Path, f.Line, f.Rule, f.Name, f.Note)
@@ -145,8 +147,8 @@ func WriteHealth(w io.Writer, findings []HealthFinding) {
 	}
 }
 
-// healthSummary counts findings per rule in the page's rule order.
-func healthSummary(findings []HealthFinding, terms int) string {
+// Summary counts findings per rule in the page's rule order.
+func Summary(findings []Finding, terms int) string {
 	counts := map[string]int{}
 	for _, f := range findings {
 		counts[f.Rule]++

@@ -1,4 +1,4 @@
-package main
+package glossary
 
 import (
 	"fmt"
@@ -72,9 +72,9 @@ func slug(s string) string {
 	return strings.TrimRight(b.String(), "-")
 }
 
-// singulars lists the phrase and its singular forms. A phrase shaped "<head> of <rest>" carries
+// Singulars lists the phrase and its singular forms. A phrase shaped "<head> of <rest>" carries
 // its plural on the head noun, so that is singularised too.
-func singulars(name string) []string {
+func Singulars(name string) []string {
 	out := []string{name}
 	if head, rest, ok := strings.Cut(name, " of "); ok {
 		for _, h := range singularWords(head)[1:] {
@@ -101,9 +101,9 @@ func singularWords(name string) []string {
 	return out
 }
 
-// headPlurals lists the written plurals of a phrase shaped "<head> of <rest>", which the
+// HeadPlurals lists the written plurals of a phrase shaped "<head> of <rest>", which the
 // trailing-suffix match cannot reach. Other phrases yield nothing.
-func headPlurals(name string) []string {
+func HeadPlurals(name string) []string {
 	head, rest, ok := strings.Cut(name, " of ")
 	if !ok {
 		return nil
@@ -135,7 +135,7 @@ func (r *Resolver) lookup(phrase, ctx string) string {
 		if m == nil {
 			continue
 		}
-		for _, cand := range singulars(phrase) {
+		for _, cand := range Singulars(phrase) {
 			if id, ok := m[strings.ToLower(cand)]; ok {
 				return id
 			}

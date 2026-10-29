@@ -1,4 +1,5 @@
-package main
+// Package glossarytest writes glossary repositories for tests.
+package glossarytest
 
 import (
 	"os"
@@ -6,10 +7,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/stefaneg/ubiq/internal/glossary"
 )
 
-// fixtureRoot writes a three-context glossary, a context map and one ADR into a temp dir.
-func fixtureRoot(t *testing.T) string {
+// Root writes a three-context glossary, a context map and one ADR into a temp dir.
+func Root(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	files := map[string]string{
@@ -149,12 +152,12 @@ The common **Tag** versus a git tag.
 **Every Stack Image is pinned.** A Workspace Run records the Tags it used. Unknown Phrase stays plain.
 `,
 	}
-	writeTree(t, root, files)
+	WriteTree(t, root, files)
 	return root
 }
 
-// writeTree writes files, keyed by slash-separated path relative to root.
-func writeTree(t *testing.T, root string, files map[string]string) {
+// WriteTree writes files, keyed by slash-separated path relative to root.
+func WriteTree(t *testing.T, root string, files map[string]string) {
 	t.Helper()
 	for rel, content := range files {
 		path := filepath.Join(root, filepath.FromSlash(rel))
@@ -163,9 +166,10 @@ func writeTree(t *testing.T, root string, files map[string]string) {
 	}
 }
 
-func loadFixture(t *testing.T) *Model {
+// Load loads the model from a fresh Root.
+func Load(t *testing.T) *glossary.Model {
 	t.Helper()
-	model, err := LoadModel(fixtureRoot(t))
+	model, err := glossary.Load(Root(t))
 	require.NoError(t, err)
 	return model
 }

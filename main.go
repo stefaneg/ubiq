@@ -11,18 +11,18 @@
 package main
 
 import (
-	_ "embed"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
-)
 
-//go:embed page.html
-var page string
+	"github.com/stefaneg/ubiq/internal/check"
+	"github.com/stefaneg/ubiq/internal/glossary"
+	"github.com/stefaneg/ubiq/internal/health"
+	"github.com/stefaneg/ubiq/internal/page"
+)
 
 const usage = "usage: ubiq html [-root dir] [-out file] | ubiq check [-root dir] [file ...] | " +
 	"ubiq health [-root dir]"
@@ -63,11 +63,11 @@ func runHTML(args []string, status io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	model, err := LoadModel(*root)
+	model, err := glossary.Load(*root)
 	if err != nil {
 		return err
 	}
-	html, err := RenderPage(model)
+	html, err := page.Render(model)
 	if err != nil {
 		return err
 	}
@@ -79,17 +79,6 @@ func runHTML(args []string, status io.Writer) error {
 	return nil
 }
 
-// RenderPage embeds the model as JSON in the page template.
-func RenderPage(model *Model) (string, error) {
-	data, err := json.Marshal(model)
-	if err != nil {
-		return "", err
-	}
-	// keep </script> out of the embedded JSON
-	js := strings.ReplaceAll(string(data), "</", `<\/`)
-	return strings.Replace(page, "/*__DATA__*/null", js, 1), nil
-}
-
 func runCheck(args []string, stdin io.Reader, stdout io.Writer) error {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.SetOutput(stdout)
@@ -97,7 +86,7 @@ func runCheck(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	model, err := LoadModel(*root)
+	model, err := glossary.Load(*root)
 	if err != nil {
 		return err
 	}
@@ -105,7 +94,7 @@ func runCheck(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	NewChecker(model).Check(text).Write(stdout)
+	check.New(model).Check(text).Write(stdout)
 	return nil
 }
 
@@ -137,13 +126,13 @@ func runHealth(args []string, stdout, status io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	model, err := LoadModel(*root)
+	model, err := glossary.Load(*root)
 	if err != nil {
 		return err
 	}
-	findings := Health(model)
-	WriteHealth(stdout, findings)
-	fmt.Fprintln(status, healthSummary(findings, len(model.Terms)))
+	findings := health.Check(model)
+	health.Write(stdout, findings)
+	fmt.Fprintln(status, health.Summary(findings, len(model.Terms)))
 	if len(findings) > 0 {
 		return errHealthFindings
 	}
