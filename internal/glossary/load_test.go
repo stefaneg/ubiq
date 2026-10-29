@@ -202,6 +202,8 @@ func TestRelationshipLabelsNameContextsByHeadingOrMapLink(t *testing.T) {
 	assert.Equal(t, []string{"billing", "ordering"}, model.Relationships[1].Contexts, "by heading")
 	assert.Equal(t, []string{"billing"}, model.Relationships[2].Contexts)
 	assert.Equal(t, glossary.ContextRelationship{HTML: "Without a label."}, model.Relationships[3])
-	require.Len(t, model.Unresolved, 1)
-	assert.Equal(t, glossary.Unresolved{Phrase: "Refund", Path: "GLOSSARY-MAP.md", Context: "billing", Where: "relationship Billing ↔ Ordering"}, model.Unresolved[0])
+	assert.Equal(t, []glossary.Unresolved{
+		{Phrase: "Refund", Path: "GLOSSARY-MAP.md", Context: "billing", Where: "relationship Billing ↔ Ordering"},
+		{Phrase: "Shipping", Path: "GLOSSARY-MAP.md", Where: "relationship Shipping → Billing"},
+	}, model.Unresolved, "a label name that matches no context is unresolved")
 }

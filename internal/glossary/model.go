@@ -41,8 +41,8 @@ type ContextRelationship struct {
 
 type Unresolved struct {
 	Phrase  string `json:"phrase"`
-	Path    string `json:"path"` // the file the phrase is in
-	Context string `json:"context"`
+	Path    string `json:"path"`    // the file the phrase is in
+	Context string `json:"context"` // the context the phrase resolves from; empty for a relationship label
 	Where   string `json:"where"`
 }
 

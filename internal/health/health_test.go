@@ -69,3 +69,38 @@ func TestCheckNamesContextsByTheirHeading(t *testing.T) {
 	require.Len(t, findings, 2)
 	assert.Equal(t, "Course Video Manager: Clip", findings[0].Note)
 }
+
+func TestCheckReportsANameTwoContextsDefineThatNoRelationshipBetweenThemMentions(t *testing.T) {
+	unmapped := func(relationships string) []Finding {
+		root := t.TempDir()
+		glossarytest.WriteTree(t, root, map[string]string{
+			"GLOSSARY-MAP.md": "# Map\n\n## Contexts\n\n- [Ordering](o/GLOSSARY.md)\n- [Billing](b/GLOSSARY.md)\n- [Shipping](s/GLOSSARY.md)\n\n## Relationships\n\n" + relationships,
+			"o/GLOSSARY.md":   "# Ordering\n\n## Language\n\n**Customer**:\nA buyer.\n",
+			"b/GLOSSARY.md":   "# Billing\n\n## Language\n\n**Customer**:\nA payer.\n",
+			"s/GLOSSARY.md":   "# Shipping\n\n## Language\n\n**Parcel**:\nA box for a Customer.\n",
+		})
+		model, err := glossary.Load(root)
+		require.NoError(t, err)
+		var out []Finding
+		for _, f := range Check(model) {
+			if f.Rule == "unmapped" {
+				out = append(out, f)
+			}
+		}
+		return out
+	}
+	assert.Len(t, unmapped("- **Ordering → Billing**: orders become invoices.\n"), 2, "the relationship does not mention Customer")
+	assert.Len(t, unmapped("- **Shipping → Billing**: a Customer pays for a parcel.\n"), 2, "the relationship is not between Ordering and Billing")
+	assert.Empty(t, unmapped("- **Ordering → Billing**: the Ordering Customer becomes the Billing Customer.\n"))
+}
+
+func TestCheckReportsARelationshipLabelNamingNoContext(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{
+		"GLOSSARY-MAP.md": "# Map\n\n## Contexts\n\n- [Ordering](o/GLOSSARY.md)\n\n## Relationships\n\n- **Integrations → Ordering**: adapters use the Ordering language.\n",
+		"o/GLOSSARY.md":   "# Ordering\n\n## Language\n\n**Order**:\nA request.\n",
+	})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Contains(t, Check(model), Finding{Path: "GLOSSARY-MAP.md", Rule: "unresolved", Name: "Integrations", Note: "relationship Integrations → Ordering"})
+}

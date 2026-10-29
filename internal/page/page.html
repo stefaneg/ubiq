@@ -369,8 +369,8 @@ function mapPage() {
 const RULES = [
   { key: 'long', name: 'Definition longer than two sentences', why: 'Keep definitions tight. One or two sentences max. Define what it IS, not what it does.' },
   { key: 'orphan', name: 'Term nothing else mentions', why: 'A term no other definition or context relationship refers to is either new vocabulary or a candidate for removal.' },
-  { key: 'unmapped', name: 'Same name in two contexts', why: 'A name two contexts both define is either a deliberate difference or a word one of them should drop.' },
-  { key: 'unresolved', name: 'Bold phrase with no entry', why: 'A phrase written like a term is a claim that a term exists. Either add the entry or drop the bold.' },
+  { key: 'unmapped', name: 'Same name in two contexts, no relationship mentions it', why: 'A name two contexts both define is either a deliberate difference or a word one of them should drop. A context relationship between the two that mentions the name records which.' },
+  { key: 'unresolved', name: 'Bold phrase or relationship label with no match', why: 'A phrase written like a term is a claim that a term exists, and a relationship label names contexts. Either add the term or context, or drop the bold.' },
 ];
 const findingsOf = rule => DATA.health.filter(f => f.rule === rule);
 const termFindings = id => DATA.health.filter(f => f.term === id).map(x => ({ r: RULES.find(r => r.key === x.rule), x }));

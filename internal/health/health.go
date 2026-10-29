@@ -5,6 +5,7 @@ import (
 	"html"
 	"io"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -25,8 +26,8 @@ type Finding struct {
 //
 //	long       definition longer than two sentences
 //	orphan     no other term's definition and no context relationship refers to the term (ADRs do not count)
-//	unmapped   a term name defined in two contexts
-//	unresolved a bold phrase with no entry
+//	unmapped   a term name defined in two contexts that no context relationship between them mentions
+//	unresolved a bold phrase with no entry, or a relationship label naming no context
 func Check(model *glossary.Model) []Finding {
 	paths := map[string]string{}
 	for _, c := range model.Contexts {
@@ -61,21 +62,23 @@ func Check(model *glossary.Model) []Finding {
 			}
 			add(t, "orphan", note)
 		}
-		key := strings.ToLower(t.Name)
-		if len(byName[key]) > 1 {
-			var others []string
-			for _, other := range byName[key] {
-				if other != id {
-					others = append(others, model.ContextName(model.Terms[other].Context))
-				}
+		var unmapped []string
+		for _, other := range byName[strings.ToLower(t.Name)] {
+			if other != id && !related(model, t.Context, model.Terms[other].Context, byName[strings.ToLower(t.Name)]) {
+				unmapped = append(unmapped, model.ContextName(model.Terms[other].Context))
 			}
-			sort.Strings(others)
-			add(t, "unmapped", "also in "+strings.Join(others, ", "))
+		}
+		if len(unmapped) > 0 {
+			sort.Strings(unmapped)
+			add(t, "unmapped", "also in "+strings.Join(unmapped, ", "))
 		}
 	}
 	for _, u := range model.Unresolved {
-		out = append(out, Finding{Path: u.Path, Rule: "unresolved", Name: u.Phrase,
-			Note: model.ContextName(u.Context) + ": " + u.Where})
+		note := u.Where
+		if u.Context != "" {
+			note = model.ContextName(u.Context) + ": " + note
+		}
+		out = append(out, Finding{Path: u.Path, Rule: "unresolved", Name: u.Phrase, Note: note})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
@@ -91,6 +94,21 @@ func Check(model *glossary.Model) []Finding {
 		return a.Name < b.Name
 	})
 	return out
+}
+
+// related reports whether a context relationship whose label names both contexts mentions one of the terms ids.
+func related(model *glossary.Model, a, b string, ids []string) bool {
+	for _, rel := range model.Relationships {
+		if !slices.Contains(rel.Contexts, a) || !slices.Contains(rel.Contexts, b) {
+			continue
+		}
+		for _, id := range ids {
+			if slices.Contains(rel.TermIDs, id) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 var reTag = regexp.MustCompile(`<[^>]*>`)

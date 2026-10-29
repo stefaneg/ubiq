@@ -367,8 +367,8 @@ func build(contexts []*rawContext, rels []rawRelationship, adrs []rawADR) *Model
 	return m
 }
 
-// renderRelationships resolves each label's names to contexts, by heading or by the map's link text, and renders
-// the statement in the first context the label names.
+// renderRelationships resolves each label's names to contexts, by heading or by the map's link text, recording a
+// name that matches no context as unresolved, and renders the statement in the first context the label names.
 func (r *Resolver) renderRelationships(contexts []*rawContext, rels []rawRelationship) []ContextRelationship {
 	keys := map[string]string{}
 	for _, rc := range contexts {
@@ -383,6 +383,8 @@ func (r *Resolver) renderRelationships(contexts []*rawContext, rels []rawRelatio
 		for _, n := range labelNames(rel.label) {
 			if k, ok := keys[strings.ToLower(n)]; ok {
 				cr.Contexts = append(cr.Contexts, k)
+			} else {
+				r.model.Unresolved = append(r.model.Unresolved, Unresolved{Phrase: n, Path: r.file, Where: "relationship " + rel.label})
 			}
 		}
 		ctx := ""
