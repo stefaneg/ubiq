@@ -1,6 +1,18 @@
 # Examples
 
-[mattpocock/course-video-manager](https://github.com/mattpocock/course-video-manager) keeps a single-context
+## ubiq
+
+[ubiq.html](ubiq.html) is the page `ubiq html` renders for this repository: the root [GLOSSARY.md](../GLOSSARY.md)
+and the ADRs in [docs/adr](../docs/adr). Download it and open it in a browser. To render it again after changing
+the glossary, run this from the repository root:
+
+```sh
+ubiq html -out examples/ubiq.html
+```
+
+## course-video-manager
+
+[mattpocock/course-video-manager](https://github.com/mattpocock/course-video-manager) keeps a larger single-context
 glossary: one root `GLOSSARY.md` and its ADRs in `docs/adr`. The project has no license, so this repository does not
 include a rendered page. To see the page, clone the project and render it:
 
