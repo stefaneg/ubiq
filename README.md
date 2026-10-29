@@ -87,10 +87,10 @@ ubiq reads the layout that Matt Pocock's
   - [Billing](./src/billing/GLOSSARY.md): generates invoices and processes payments
   ```
 
-  A context listed with the root `GLOSSARY.md` is the shared one: a bold phrase resolves in its own context first,
-  then in the shared context, then in the others in map order.
+  A bold phrase resolves in its own context first, then in the others in map order.
 
-ADRs are read from `docs/adr/*.md` at the root and from `docs/adr/*.md` beside each context's glossary.
+ADRs are read from `docs/adr/*.md` at the root and from `docs/adr/*.md` beside each context's glossary. With one
+context, the root ADRs belong to it. With several, the root ADRs are system-wide.
 
 ## Install
 

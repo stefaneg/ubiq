@@ -17,10 +17,8 @@ func TestLoadReadsTheContextsTheMapLinks(t *testing.T) {
 		keys = append(keys, c.Key)
 		paths = append(paths, c.Path)
 	}
-	assert.Equal(t, []string{"common", "workspace", "stacks"}, keys, "the root glossary first, then map order")
-	assert.Equal(t, []string{"GLOSSARY.md", "internal/workspace/GLOSSARY.md", "internal/stacks/GLOSSARY.md"}, paths)
-	assert.True(t, model.Contexts[0].Shared)
-	assert.False(t, model.Contexts[1].Shared)
+	assert.Equal(t, []string{"workspace", "stacks", "common"}, keys, "map order")
+	assert.Equal(t, []string{"internal/workspace/GLOSSARY.md", "internal/stacks/GLOSSARY.md", "GLOSSARY.md"}, paths)
 }
 
 func TestLoadWithoutAMapReadsTheRootGlossaryAsTheOnlyContext(t *testing.T) {
@@ -45,7 +43,7 @@ A person who places an **Order**.
 	assert.Equal(t, "GLOSSARY.md", model.Contexts[0].Path)
 	assert.Equal(t, []string{"ordering/customer"}, model.Terms["ordering/order"].Refs)
 	require.Len(t, model.ADRs, 1)
-	assert.Equal(t, "ordering", model.ADRs[0].Context)
+	assert.Equal(t, "ordering", model.ADRs[0].Context, "without a context map, the root ADRs belong to the only context")
 	assert.Equal(t, []string{"ordering/order"}, model.ADRs[0].TermIDs)
 }
 
@@ -107,7 +105,6 @@ func TestLoadWithoutARootGlossaryKeepsMapOrder(t *testing.T) {
 	require.Len(t, model.Contexts, 2)
 	assert.Equal(t, "ordering", model.Contexts[0].Key)
 	assert.Equal(t, "src/ordering/GLOSSARY.md", model.Contexts[0].Path)
-	assert.False(t, model.Contexts[0].Shared)
 	assert.Equal(t, "billing", model.Contexts[1].Key)
 	assert.Empty(t, model.Unresolved, "the map's Relationships section is not read as vocabulary")
 }
@@ -122,7 +119,7 @@ func TestLoadReadsEachContextsOwnADRs(t *testing.T) {
 	require.Len(t, adrs, 2)
 	system := adrs["adr/0001-bill-on-shipment"]
 	assert.Equal(t, "docs/adr/0001-bill-on-shipment.md", system.Path)
-	assert.Equal(t, "billing", system.Context, "the context whose names dominate a system-wide ADR")
+	assert.Empty(t, system.Context, "a root ADR is system-wide when there is a context map")
 	own := adrs["adr/ordering/0001-orders-are-final"]
 	assert.Equal(t, "src/ordering/docs/adr/0001-orders-are-final.md", own.Path)
 	assert.Equal(t, "ordering", own.Context, "a context's own ADR stays in that context")

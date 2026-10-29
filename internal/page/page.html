@@ -9,7 +9,6 @@
   --bg:#1b1d21;--fg:#e8e8e4;--muted:#9aa0a8;--line:#34373d;--panel:#24272d;--panel2:#2b2f36;
   --accent:#8ab4f8;--accent-bg:#2a3a52;--amber:#f2c377;--amber-bg:#3d3222;
   --rose:#f49ab0;--rose-bg:#45262e;--teal:#7fd3c4;--teal-bg:#1f3a37;
-  --shared:#c3b5f0;
   --navw:260px;
   font-family: ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
 }
@@ -139,11 +138,11 @@ DATA.unresolved ||= [];
 DATA.health ||= [];
 const CTX_NAME = Object.fromEntries(DATA.contexts.map(c => [c.key, c.name]));
 const ctxCls = k => 'ctx-' + k;
-{ // one colour per context, the shared one in purple
-  const SHARED = ['#c3b5f0', '#332b4a'], PALETTE = [['#8ab4f8', '#2a3a52'], ['#7fd3c4', '#1f3a37'], ['#a8d68a', '#283823'], ['#f0a57a', '#40291e'], ['#e2a6e8', '#3d2741'], ['#d6d9de', '#34373d']];
+{ // one colour per context
+  const PALETTE = [['#8ab4f8', '#2a3a52'], ['#7fd3c4', '#1f3a37'], ['#a8d68a', '#283823'], ['#f0a57a', '#40291e'], ['#e2a6e8', '#3d2741'], ['#d6d9de', '#34373d']];
   let i = 0, css = '';
   for (const c of DATA.contexts) {
-    const [fg, bg] = c.shared ? SHARED : PALETTE[i++ % PALETTE.length], k = ctxCls(c.key);
+    const [fg, bg] = PALETTE[i++ % PALETTE.length], k = ctxCls(c.key);
     css += `.chip.${k}{background:${bg};color:${fg}}.nav .ctx.${k}{color:${fg}}.node.${k} circle{stroke:${fg}}`;
   }
   const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
@@ -223,12 +222,13 @@ function neighbourhood(id, W = 940) {
 }
 // ------------------------------------------------------------------ term card
 const adrLink = a => `<a href="#${a.id}">${esc(a.title)}</a>`;
+const adrChip = a => a.context ? chip(ctxCls(a.context), CTX_NAME[a.context]) : chip('also', 'system-wide');
 function sameWordBlock(id) {
   const sw = sameWord(id); if (!sw.length) return '';
   return `<div class="same"><h4>Same name in another context</h4>${sw.map(x => `<div class="note">${link(x)}${ctxChip(x)}<div class="small muted">${esc(textOf(T[x].definition))}</div></div>`).join('')}</div>`;
 }
 function decisionsBlock(id) {
-  return `<h4>Decisions touching this term (${adrsFor[id].length})</h4>` + (adrsFor[id].map(a => `<div class="note">${adrLink(a)} ${chip(ctxCls(a.context), CTX_NAME[a.context])}<div class="small muted">${esc(a.path)}</div></div>`).join('') || '<div class="muted">no ADR names this term</div>');
+  return `<h4>Decisions touching this term (${adrsFor[id].length})</h4>` + (adrsFor[id].map(a => `<div class="note">${adrLink(a)} ${adrChip(a)}<div class="small muted">${esc(a.path)}</div></div>`).join('') || '<div class="muted">no ADR names this term</div>');
 }
 function healthBlock(id) {
   const f = termFindings(id);
@@ -351,14 +351,14 @@ function wireCheck(body) {
 // ------------------------------------------------------------------ decisions and contexts
 function adrPage(id) {
   const a = ADR[id]; if (!a) return '<div class="card">Unknown ADR</div>';
-  return `<div class="card adr"><h2>${esc(a.title)}</h2><div class="muted small">${esc(a.path)} · vocabulary mostly ${CTX_NAME[a.context]} (names in the body are linked when they match a glossary entry exactly)</div>
+  return `<div class="card adr"><h2>${esc(a.title)}</h2><div class="muted small">${esc(a.path)} · ${a.context ? CTX_NAME[a.context] : 'system-wide'} (names in the body are linked when they match a glossary entry exactly)</div>
     <h4>Terms touched (${a.terms.length})</h4><div class="terms">${a.terms.map(x => link(x)).join('') || '<span class="muted">no glossary name appears in this ADR</span>'}</div>
     <div class="adrbody">${a.html}</div></div>`;
 }
 function mapPage() {
   let h = `<div class="card"><h2>Context map</h2><p class="muted">${DATA.contexts.length} ${DATA.contexts.length === 1 ? 'context' : 'contexts'}${DATA.contexts.length > 1 ? ', as <code>GLOSSARY-MAP.md</code> lists them' : ''}.</p>`;
   h += DATA.contexts.map(c => `<div class="note"><b>${esc(c.name)}</b> ${chip(ctxCls(c.key), c.key)} <span class="muted small">${esc(c.path)} · ${c.clusters.reduce((n, cl) => n + cl.terms.length, 0)} terms</span>${c.intro}</div>`).join('');
-  h += `<h4>Decisions (${DATA.adrs.length})</h4><p class="small muted">ADRs in <code>docs/adr</code> and in each context's own <code>docs/adr</code>, with the context each belongs to or whose vocabulary dominates it.</p><ul>${DATA.adrs.map(a => `<li>${adrLink(a)} ${chip(ctxCls(a.context), CTX_NAME[a.context])} <span class="muted small">${a.terms.length} terms</span></li>`).join('')}</ul></div>`;
+  h += `<h4>Decisions (${DATA.adrs.length})</h4><p class="small muted">ADRs in <code>docs/adr</code> and in each context's own <code>docs/adr</code>, with the context each belongs to.</p><ul>${DATA.adrs.map(a => `<li>${adrLink(a)} ${adrChip(a)} <span class="muted small">${a.terms.length} terms</span></li>`).join('')}</ul></div>`;
   return h;
 }
 // ------------------------------------------------------------------ glossary health (findings from `ubiq health`)

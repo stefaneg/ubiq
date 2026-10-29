@@ -19,7 +19,7 @@ func TestLoadParsesTermsWithClusterAvoidAndLine(t *testing.T) {
 	assert.Equal(t, "label", tag.Avoid)
 	assert.Equal(t, 15, tag.Line)
 	assert.Equal(t, []string{"common/image-ref", "common/tag", "common/repository"},
-		model.Contexts[0].Clusters[0].TermIDs)
+		model.Contexts[2].Clusters[0].TermIDs)
 }
 
 func TestRedirectsDropShortFormsOfTheTermName(t *testing.T) {
@@ -29,8 +29,12 @@ func TestRedirectsDropShortFormsOfTheTermName(t *testing.T) {
 	assert.Equal(t, []string{"container image", "image name"}, model.Terms["workspace/image"].Redirects)
 }
 
-func TestDefinitionLinksResolveOwnContextThenCommonThenOtherCore(t *testing.T) {
+func TestDefinitionLinksResolveInTheOwnContextThenInMapOrder(t *testing.T) {
 	model := glossarytest.Load(t)
+	assert.Equal(t, []string{"stacks/stack-image", "workspace/run"}, model.Terms["stacks/stack"].Refs,
+		"Workspace precedes Common in the map")
+	assert.Equal(t, []string{"common/unit-of-work"}, model.Terms["common/run"].Refs)
+	assert.Equal(t, []string{"common/run"}, model.Terms["common/unit-of-work"].Refs, "a context's own term wins")
 	stackImage := model.Terms["stacks/stack-image"]
 	assert.Equal(t, []string{"stacks/stack", "workspace/image"}, stackImage.Refs)
 	assert.Contains(t, stackImage.Definition, `<a class="t" href="#workspace/image" data-id="workspace/image">Image</a>`)
@@ -62,7 +66,7 @@ func TestSectionsOutsideLanguageAreNotRead(t *testing.T) {
 		assert.NotContains(t, []string{"Ghost", "Phantom", "Spectre"}, u.Phrase)
 	}
 	var clusters []string
-	for _, cl := range model.Contexts[0].Clusters {
+	for _, cl := range model.Contexts[2].Clusters {
 		clusters = append(clusters, cl.Name)
 	}
 	assert.Equal(t, []string{"Image References", "Run Tracking"}, clusters)
@@ -94,7 +98,7 @@ func TestADRsLinkGlossaryNamesAndKeepBoldSentencesPlain(t *testing.T) {
 	assert.Equal(t, "adr/0001-pin-tags", adr.ID)
 	assert.Equal(t, "Pin tags on Stack Images", adr.Title)
 	assert.Equal(t, "docs/adr/0001-pin-tags.md", adr.Path)
-	assert.Equal(t, "workspace", adr.Context)
+	assert.Empty(t, adr.Context, "system-wide")
 	assert.Equal(t, []string{"workspace/workspace", "workspace/run", "common/tag"}, adr.TermIDs)
 	assert.Contains(t, adr.HTML, `<h3 class="mdh">Decision</h3>`)
 	assert.Contains(t, adr.HTML, `<b>Every Stack Image is pinned.</b>`)

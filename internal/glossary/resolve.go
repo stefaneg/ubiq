@@ -50,8 +50,7 @@ func isWordBreak(r rune) bool { return r == ' ' || r == '-' }
 type Resolver struct {
 	byContext map[string]map[string]string // context -> lowercase name -> id
 	model     *Model
-	order     []string // resolution order after a phrase's own context: the shared context first
-	shared    string   // key of the shared context; empty when there is none
+	order     []string // resolution order after a phrase's own context: map order
 	lenient   bool     // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
 }
 
@@ -118,7 +117,7 @@ func HeadPlurals(name string) []string {
 	return out
 }
 
-// lookup tries own context, then the shared one, then the rest.
+// lookup tries the phrase's own context, then the others in map order.
 func (r *Resolver) lookup(phrase, ctx string) string {
 	phrase = strings.TrimSpace(phrase)
 	phrase = strings.TrimSuffix(phrase, "'s")
@@ -325,9 +324,6 @@ func build(contexts []*rawContext, adrs []rawADR) *Model {
 	// pass 1: register terms
 	for _, rc := range contexts {
 		r.order = append(r.order, rc.key)
-		if rc.shared {
-			r.shared = rc.key
-		}
 		r.byContext[rc.key] = map[string]string{}
 		for _, cname := range rc.clusterOrder {
 			for _, t := range rc.clusters[cname].terms {
@@ -342,7 +338,7 @@ func build(contexts []*rawContext, adrs []rawADR) *Model {
 	// pass 2: render
 	for _, rc := range contexts {
 		intro, _ := r.block(rc.intro, rc.key, rc.name+" intro")
-		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Shared: rc.shared, Intro: intro}
+		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: intro}
 		for _, cname := range rc.clusterOrder {
 			cl := rc.clusters[cname]
 			ci, _ := r.block(cl.intro, rc.key, cname+" intro")

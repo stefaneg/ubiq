@@ -14,21 +14,26 @@ type ADR struct {
 	ID      string   `json:"id"` // adr/<file slug>
 	Title   string   `json:"title"`
 	Path    string   `json:"path"`
-	Context string   `json:"context"` // core whose vocabulary dominates the body
+	Context string   `json:"context"` // the context the ADR belongs to; empty for a system-wide one
 	HTML    string   `json:"html"`
 	TermIDs []string `json:"terms"`
 }
 
 type rawADR struct {
 	path, title string
-	context     string // owning context for a context's own ADR; empty for a system-wide one
+	context     string // owning context; empty for a system-wide one
 	body        []string
 }
 
-// parseADRs reads the system-wide docs/adr/*.md under root, then each context's own, from docs/adr beside its
-// glossary. A missing directory yields no ADRs.
+// parseADRs reads docs/adr/*.md under root, then each context's own, from docs/adr beside its glossary. The root
+// ADRs belong to the only context of a repository without a context map, and are system-wide otherwise. A missing
+// directory yields no ADRs.
 func parseADRs(root string, contexts []*rawContext) ([]rawADR, error) {
-	out, err := parseADRDir(root, "docs/adr", "")
+	rootContext := ""
+	if len(contexts) == 1 && path.Dir(contexts[0].path) == "." {
+		rootContext = contexts[0].key
+	}
+	out, err := parseADRDir(root, "docs/adr", rootContext)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +81,7 @@ func parseADRDir(root, dir, context string) ([]rawADR, error) {
 // resolver links them. Longest names first; code spans and existing bold are
 // left alone. Matching is case-sensitive on the exact name, with an optional
 // plural suffix.
-func (r *Resolver) autoBold(line string, names []string, res []*regexp.Regexp, found map[string]bool) string {
+func (r *Resolver) autoBold(line string, res []*regexp.Regexp) string {
 	if strings.HasPrefix(strings.TrimSpace(line), "#") {
 		return line
 	}
@@ -90,10 +95,9 @@ func (r *Resolver) autoBold(line string, names []string, res []*regexp.Regexp, f
 	protect(reCode)
 	protect(reBold)
 	var toks []string
-	for i, re := range res {
+	for _, re := range res {
 		line = re.ReplaceAllStringFunc(line, func(m string) string {
 			sub := re.FindStringSubmatch(m)
-			found[names[i]] = true
 			toks = append(toks, "**"+sub[2]+"**")
 			return sub[1] + "\x02" + string(rune('A'+len(toks)-1)) + "\x02" + sub[3]
 		})
@@ -133,38 +137,16 @@ func (r *Resolver) renderADRs(raws []rawADR) []ADR {
 	defer func() { r.lenient = false }()
 	var out []ADR
 	for _, a := range raws {
-		found := map[string]bool{}
 		body := make([]string, len(a.body))
 		for i, ln := range a.body {
-			body[i] = r.autoBold(ln, names, res, found)
+			body[i] = r.autoBold(ln, res)
 		}
-		best, id := a.context, "adr/"+a.context+"/"+strings.TrimSuffix(path.Base(a.path), ".md")
-		if best == "" {
-			best, id = r.homeContext(found), "adr/"+strings.TrimSuffix(path.Base(a.path), ".md")
+		id := "adr/" + strings.TrimSuffix(path.Base(a.path), ".md")
+		if path.Dir(a.path) != "docs/adr" {
+			id = "adr/" + a.context + "/" + strings.TrimSuffix(path.Base(a.path), ".md")
 		}
-		h, ids := r.block(body, best, "ADR "+a.title)
-		out = append(out, ADR{ID: id, Title: a.title, Path: a.path, Context: best, HTML: h, TermIDs: ids})
+		h, ids := r.block(body, a.context, "ADR "+a.title)
+		out = append(out, ADR{ID: id, Title: a.title, Path: a.path, Context: a.context, HTML: h, TermIDs: ids})
 	}
 	return out
-}
-
-// homeContext is the context whose names a system-wide ADR uses most, the shared context not counting. A tie goes
-// to the earlier context in resolution order, which starts with the shared one.
-func (r *Resolver) homeContext(found map[string]bool) string {
-	best, bestN := r.order[0], 0
-	for _, k := range r.order {
-		if k == r.shared {
-			continue
-		}
-		n := 0
-		for name := range found {
-			if _, ok := r.byContext[k][strings.ToLower(name)]; ok {
-				n++
-			}
-		}
-		if n > bestN {
-			best, bestN = k, n
-		}
-	}
-	return best
 }

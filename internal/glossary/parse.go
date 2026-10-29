@@ -24,7 +24,6 @@ type rawCluster struct {
 
 type rawContext struct {
 	key, name, path string
-	shared          bool // the root glossary
 	intro           []string
 	clusters        map[string]*rawCluster
 	clusterOrder    []string

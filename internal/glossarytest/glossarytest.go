@@ -86,7 +86,7 @@ The envctl core.
 ### Environment Model
 
 **Stack**:
-A named **Stack Image** in an environment.
+A named **Stack Image** in an environment, deployed by a **Run**.
 _Avoid_: deployment, deploy
 
 **Stack Image**:

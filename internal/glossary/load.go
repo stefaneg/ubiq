@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
-	"sort"
 )
 
 const (
@@ -36,15 +34,13 @@ func Load(root string) (*Model, error) {
 		if rc.name == "" {
 			rc.name = "Glossary"
 		}
-		rc.key, rc.shared = slug(rc.name), path.Dir(l.rel) == "."
+		rc.key = slug(rc.name)
 		if prev, ok := byKey[rc.key]; ok {
 			return nil, fmt.Errorf("%s: context key %q is already used by %s", rc.path, rc.key, prev.path)
 		}
 		byKey[rc.key] = rc
 		contexts = append(contexts, rc)
 	}
-	// the shared context first, then map order
-	sort.SliceStable(contexts, func(i, j int) bool { return contexts[i].shared && !contexts[j].shared })
 	adrs, err := parseADRs(root, contexts)
 	if err != nil {
 		return nil, err
