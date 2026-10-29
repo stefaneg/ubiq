@@ -71,8 +71,8 @@ Only phrases of two or more capitalised words count. `check` always exits 0.
 
 ## Examples
 
-[examples/ubiq.html](examples/ubiq.html) is the page rendered from ubiq's own glossary and ADRs. Download it and
-open it in a browser. [examples/README.md](examples/README.md) has more.
+[docs/examples/ubiq.html](docs/examples/ubiq.html) is the page rendered from ubiq's own glossary and ADRs. Download
+it and open it in a browser. [docs/examples/README.md](docs/examples/README.md) has more.
 
 ## Layout
 

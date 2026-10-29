@@ -2,12 +2,12 @@
 
 ## ubiq
 
-[ubiq.html](ubiq.html) is the page `ubiq html` renders for this repository: the root [GLOSSARY.md](../GLOSSARY.md)
-and the ADRs in [docs/adr](../docs/adr). Download it and open it in a browser. To render it again after changing
+[ubiq.html](ubiq.html) is the page `ubiq html` renders for this repository: the root [GLOSSARY.md](../../GLOSSARY.md)
+and the ADRs in [docs/adr](../adr). Download it and open it in a browser. To render it again after changing
 the glossary, run this from the repository root:
 
 ```sh
-ubiq html -out examples/ubiq.html
+ubiq html -out docs/examples/ubiq.html
 ```
 
 ## course-video-manager
