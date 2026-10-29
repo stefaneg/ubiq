@@ -319,8 +319,11 @@ function checkText(text) {
   const hits = { term: new Map(), cand: new Map() };
   const segs = [];
   text.replace(re, (m, p, pl, off) => { segs.push({ off, len: m.length, x: byPhrase[p.toLowerCase()] }); return m; });
-  const candRe = /\b([A-Z][a-z]+(?:[- ][A-Z][a-z]+)+)\b/g;
-  let cm; while ((cm = candRe.exec(text))) if (!segs.some(sg => cm.index < sg.off + sg.len && cm.index + cm[0].length > sg.off)) segs.push({ off: cm.index, len: cm[0].length, cand: true });
+  const candRe = /\b([A-Z][a-z]+(?:[- ][A-Z][a-z]+)+)\b/g, detRe = /^(?:The|A|An|This|That|These|Those|Each|Every|Any|Some|No|All|Both|Either|Neither|Its|Their|Our|Your|My|His|Her)[- ]/;
+  let cm; while ((cm = candRe.exec(text))) {
+    const lead = (cm[0].match(detRe) || [''])[0], off = cm.index + lead.length, len = cm[0].length - lead.length;
+    if (/[- ]/.test(text.substr(off, len)) && !segs.some(sg => off < sg.off + sg.len && off + len > sg.off)) segs.push({ off, len, cand: true });
+  }
   segs.sort((a, b) => a.off - b.off);
   let out = '', last = 0;
   for (const sg of segs) {

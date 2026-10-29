@@ -33,6 +33,10 @@ type Report struct {
 
 var reCandidate = regexp.MustCompile(`(^|[^\w-])([A-Z][a-z]+(?:[- ][A-Z][a-z]+)+)($|[^\w-])`)
 
+// reDeterminer matches an article or determiner that opens a capitalised run, such as the sentence-initial "The" in
+// "The Upload Queue", which is not part of a Candidate Phrase.
+var reDeterminer = regexp.MustCompile(`^(?:The|A|An|This|That|These|Those|Each|Every|Any|Some|No|All|Both|Either|Neither|Its|Their|Our|Your|My|His|Her)[- ]`)
+
 // New indexes every term name and the head-noun plurals of "<head> of <rest>" names, longest
 // phrase first.
 func New(model *glossary.Model) *Checker {
@@ -89,10 +93,14 @@ func (c *Checker) checkLine(n int, line string, r *Report) {
 		pos = end
 	}
 	for _, m := range reCandidate.FindAllStringSubmatchIndex(line, -1) {
-		if overlaps(taken, m[4], m[5]) {
+		start, end := m[4], m[5]
+		if lead := reDeterminer.FindString(line[start:end]); lead != "" {
+			start += len(lead)
+		}
+		if !strings.ContainsAny(line[start:end], " -") || overlaps(taken, start, end) {
 			continue
 		}
-		r.Candidates = append(r.Candidates, Finding{Line: n, Written: line[m[4]:m[5]]})
+		r.Candidates = append(r.Candidates, Finding{Line: n, Written: line[start:end]})
 	}
 }
 
