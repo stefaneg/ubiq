@@ -18,3 +18,7 @@ Every command exits 2 on a usage or read error.
 ```sh
 go install github.com/stefaneg/ubiq@latest
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
