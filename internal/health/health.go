@@ -13,11 +13,12 @@ import (
 
 // Finding is one glossary entry or phrase that breaks a health rule.
 type Finding struct {
-	Path string // glossary file
-	Line int    // term line; 0 for an unresolved phrase
-	Rule string // long | orphan | unmapped | unresolved
-	Name string // term name or bold phrase
-	Note string
+	Path string `json:"path"` // glossary file
+	Line int    `json:"line"` // term line; 0 for an unresolved phrase
+	Rule string `json:"rule"` // long | orphan | unmapped | unresolved
+	Name string `json:"name"` // term name or bold phrase
+	Note string `json:"note"`
+	Term string `json:"term,omitempty"` // term id; empty for an unresolved phrase
 }
 
 // Check applies the page's health rules to the model and returns the findings sorted by file, line and rule.
@@ -53,7 +54,7 @@ func Check(model *glossary.Model) []Finding {
 	}
 	var out []Finding
 	add := func(t *glossary.Term, rule, note string) {
-		out = append(out, Finding{Path: paths[t.Context], Line: t.Line, Rule: rule, Name: t.Name, Note: note})
+		out = append(out, Finding{Path: paths[t.Context], Line: t.Line, Rule: rule, Name: t.Name, Note: note, Term: t.ID})
 	}
 	for id, t := range model.Terms {
 		if n := sentences(plainText(t.Definition)); n > 2 {

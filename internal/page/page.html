@@ -164,6 +164,7 @@ DATA.contexts.forEach(c => (c.clusters ||= []).forEach(cl => cl.terms ||= []));
 DATA.dialogues ||= [];
 DATA.adrs ||= []; DATA.adrs.forEach(a => a.terms ||= []);
 DATA.unresolved ||= [];
+DATA.health ||= [];
 const CTX_NAME = Object.fromEntries(DATA.contexts.map(c => [c.key, c.name]));
 // CTX_ORDER is the map's lane order: the shared context in the middle of the others
 const CTX_ORDER = DATA.contexts.filter(c => !c.shared).map(c => c.key);
@@ -456,28 +457,21 @@ function wireMap(body) {
     d.open = true; d.classList.add('hi'); d.scrollIntoView({ block: 'center' });
   }));
 }
-// ------------------------------------------------------------------ glossary health
-const sentences = s => s.split(/(?<![A-Za-z]\.[a-z])[.!?](?=\s|$)/).filter(x => x.trim()).length;
+// ------------------------------------------------------------------ glossary health (findings from `ubiq health`)
 const RULES = [
-  { key: 'long', name: 'Definition longer than two sentences', why: 'Keep definitions tight. One or two sentences max. Define what it IS, not what it does.',
-    run: () => Object.keys(T).filter(id => sentences(textOf(T[id].definition)) > 2).map(id => ({ id, note: `${sentences(textOf(T[id].definition))} sentences` })) },
-  { key: 'orphan', name: 'Term nothing else mentions', why: 'A term no definition, relationship bullet, ambiguity or map entry refers to is either new vocabulary or a candidate for removal.',
-    run: () => Object.keys(T).filter(id => !inbound[id].length && !notesFor[id].length && !mapFor[id].length).map(id => ({ id, note: T[id].refs.length ? `refers to ${T[id].refs.length}, referenced by none` : 'no references in or out' })) },
-  { key: 'unmapped', name: 'Same entry in two contexts, no map entry', why: 'The map lists how contexts relate. An entry name defined in two cores that the map does not name is an unrecorded mirror or collision.',
-    run: () => Object.keys(T).filter(id => sameWord(id).length && !DATA.map.some(e => e.name.toLowerCase() === T[id].name.toLowerCase())).map(id => ({ id, note: 'also in ' + sameWord(id).map(x => CTX_NAME[T[x].context]).join(', ') })) },
-  { key: 'unresolved', name: 'Bold phrase with no entry', why: 'A phrase written like a term is a claim that a term exists. Either add the entry or drop the bold.',
-    run: () => { const seen = {}; DATA.unresolved.forEach(u => (seen[u.phrase] ||= []).push(`${CTX_NAME[u.context] || u.context}: ${u.where}`)); return Object.entries(seen).map(([p, w]) => ({ phrase: p, note: w.join('; ') })); } },
+  { key: 'long', name: 'Definition longer than two sentences', why: 'Keep definitions tight. One or two sentences max. Define what it IS, not what it does.' },
+  { key: 'orphan', name: 'Term nothing else mentions', why: 'A term no definition, relationship bullet, ambiguity or map entry refers to is either new vocabulary or a candidate for removal.' },
+  { key: 'unmapped', name: 'Same entry in two contexts, no map entry', why: 'The map lists how contexts relate. An entry name defined in two cores that the map does not name is an unrecorded mirror or collision.' },
+  { key: 'unresolved', name: 'Bold phrase with no entry', why: 'A phrase written like a term is a claim that a term exists. Either add the entry or drop the bold.' },
 ];
-let lintCache = null;
-function lint() { if (!lintCache) { lintCache = {}; for (const r of RULES) lintCache[r.key] = r.run(); } return lintCache; }
-function termFindings(id) { const L = lint(); return RULES.filter(r => r.key !== 'unresolved').flatMap(r => L[r.key].filter(x => x.id === id).map(x => ({ r, x }))); }
+const findingsOf = rule => DATA.health.filter(f => f.rule === rule);
+const termFindings = id => DATA.health.filter(f => f.term === id).map(x => ({ r: RULES.find(r => r.key === x.rule), x }));
 function healthPage() {
-  const L = lint();
   let h = `<div class="health"><h2>Glossary health</h2><p class="muted">Checks derived from the glossary format rules in the domain-modeling skill, over ${Object.keys(T).length} terms. Each term card shows its own findings at the foot.</p>`;
   for (const r of RULES) {
-    const f = L[r.key], n = new Set(f.map(x => x.id || x.phrase)).size;
+    const f = findingsOf(r.key), n = new Set(f.map(x => x.term || x.name)).size;
     h += `<div class="rule"><h3><span class="n ${n ? 'hot' : 'zero'}">${n}</span>${esc(r.name)}</h3><div class="why"><q>${esc(r.why)}</q></div>`;
-    if (f.length) h += `<details><summary class="small">show</summary><ul>${f.map(x => `<li>${x.id ? link(x.id) + ctxChip(x.id) : `<span class="unres">${esc(x.phrase)}</span>`} <span class="muted small">${esc(x.note)}</span></li>`).join('')}</ul></details>`;
+    if (f.length) h += `<details><summary class="small">show</summary><ul>${f.map(x => `<li>${x.term ? link(x.term) + ctxChip(x.term) : `<span class="unres">${esc(x.name)}</span>`} <span class="muted small">${esc(x.note)}</span></li>`).join('')}</ul></details>`;
     h += '</div>';
   }
   return h + '</div>';

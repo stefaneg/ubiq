@@ -24,7 +24,7 @@ func TestCheckAppliesThePageRulesAndSortsByFileAndLine(t *testing.T) {
 	findings := Check(glossarytest.Load(t))
 	assert.Equal(t, []Finding{
 		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Label", Note: "Common: Image References ambiguities"},
-		{Path: "GLOSSARY.md", Line: 15, Rule: "long", Name: "Tag", Note: "3 sentences"},
+		{Path: "GLOSSARY.md", Line: 15, Rule: "long", Name: "Tag", Note: "3 sentences", Term: "common/tag"},
 	}, findings, "file-level findings first, then by line; Repository is named by Tag's definition")
 }
 
@@ -54,7 +54,7 @@ func TestCheckReportsTwoContextsSharingANameTheMapDoesNotList(t *testing.T) {
 		}
 	}
 	require.Len(t, unmapped, 2)
-	assert.Equal(t, Finding{Path: "GLOSSARY.md", Line: 35, Rule: "unmapped", Name: "Run", Note: "also in Workspace"}, unmapped[0])
+	assert.Equal(t, Finding{Path: "GLOSSARY.md", Line: 35, Rule: "unmapped", Name: "Run", Note: "also in Workspace", Term: "common/run"}, unmapped[0])
 	assert.Equal(t, "internal/workspace/GLOSSARY.md", unmapped[1].Path)
 	assert.Equal(t, "also in Common", unmapped[1].Note)
 }

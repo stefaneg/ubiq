@@ -7,14 +7,18 @@ import (
 	"strings"
 
 	"github.com/stefaneg/ubiq/internal/glossary"
+	"github.com/stefaneg/ubiq/internal/health"
 )
 
 //go:embed page.html
 var template string
 
-// Render embeds the model as JSON in the page template.
+// Render embeds the model and its health findings as JSON in the page template.
 func Render(model *glossary.Model) (string, error) {
-	data, err := json.Marshal(model)
+	data, err := json.Marshal(struct {
+		*glossary.Model
+		Health []health.Finding `json:"health"`
+	}{model, health.Check(model)})
 	if err != nil {
 		return "", err
 	}
