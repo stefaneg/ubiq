@@ -134,6 +134,7 @@ const T = DATA.terms;
 for (const id in T) { T[id].refs = (T[id].refs || []).filter(x => x !== id); T[id].redirects ||= []; }
 DATA.contexts.forEach(c => (c.clusters ||= []).forEach(cl => cl.terms ||= []));
 DATA.adrs ||= []; DATA.adrs.forEach(a => a.terms ||= []);
+DATA.relationships ||= []; DATA.relationships.forEach(r => { r.terms ||= []; r.contexts ||= []; });
 DATA.unresolved ||= [];
 DATA.health ||= [];
 const CTX_NAME = Object.fromEntries(DATA.contexts.map(c => [c.key, c.name]));
@@ -149,9 +150,10 @@ const ctxCls = k => 'ctx-' + k;
 }
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const inbound = {}, adrsFor = {}, byName = {}, ADR = {};
-for (const id in T) { inbound[id] = []; adrsFor[id] = []; (byName[T[id].name.toLowerCase()] ||= []).push(id); }
+const inbound = {}, adrsFor = {}, relsFor = {}, byName = {}, ADR = {};
+for (const id in T) { inbound[id] = []; adrsFor[id] = []; relsFor[id] = []; (byName[T[id].name.toLowerCase()] ||= []).push(id); }
 for (const id in T) for (const r of T[id].refs) inbound[r].push(id);
+DATA.relationships.forEach(r => { for (const id of r.terms) relsFor[id].push(r); });
 DATA.adrs.forEach(a => { ADR[a.id] = a; for (const id of a.terms) adrsFor[id].push(a); });
 // redirectIndex: avoided word -> terms that list it as a synonym (short forms of the term's own name excluded by the generator)
 const redirectIndex = {};
@@ -222,6 +224,7 @@ function neighbourhood(id, W = 940) {
 }
 // ------------------------------------------------------------------ term card
 const adrLink = a => `<a href="#${a.id}">${esc(a.title)}</a>`;
+const relNote = r => `<div class="note">${r.label ? `<b>${esc(r.label)}</b>` : ''}${r.contexts.map(k => chip(ctxCls(k), CTX_NAME[k])).join('')}<div>${r.html}</div></div>`;
 const adrChip = a => a.context ? chip(ctxCls(a.context), CTX_NAME[a.context]) : chip('also', 'system-wide');
 function sameWordBlock(id) {
   const sw = sameWord(id); if (!sw.length) return '';
@@ -240,7 +243,7 @@ function termCard(id) {
     <div class="def">${t.definition}</div>${avoidLine(t)}
     ${sameWordBlock(id)}
     <div class="graph">${neighbourhood(id)}</div>
-    <div class="sections">${decisionsBlock(id)}${healthBlock(id)}</div></div>`;
+    <div class="sections">${relsFor[id].length ? `<h4>Context relationships (${relsFor[id].length})</h4>${relsFor[id].map(relNote).join('')}` : ''}${decisionsBlock(id)}${healthBlock(id)}</div></div>`;
 }
 // Landing: every term as a chip, grouped by context and cluster.
 function landingHtml() {
@@ -358,13 +361,14 @@ function adrPage(id) {
 function mapPage() {
   let h = `<div class="card"><h2>Context map</h2><p class="muted">${DATA.contexts.length} ${DATA.contexts.length === 1 ? 'context' : 'contexts'}${DATA.contexts.length > 1 ? ', as <code>GLOSSARY-MAP.md</code> lists them' : ''}.</p>`;
   h += DATA.contexts.map(c => `<div class="note"><b>${esc(c.name)}</b> ${chip(ctxCls(c.key), c.key)} <span class="muted small">${esc(c.path)} · ${c.clusters.reduce((n, cl) => n + cl.terms.length, 0)} terms</span>${c.intro}</div>`).join('');
+  if (DATA.relationships.length) h += `<h4>Relationships (${DATA.relationships.length})</h4>` + DATA.relationships.map(relNote).join('');
   h += `<h4>Decisions (${DATA.adrs.length})</h4><p class="small muted">ADRs in <code>docs/adr</code> and in each context's own <code>docs/adr</code>, with the context each belongs to.</p><ul>${DATA.adrs.map(a => `<li>${adrLink(a)} ${adrChip(a)} <span class="muted small">${a.terms.length} terms</span></li>`).join('')}</ul></div>`;
   return h;
 }
 // ------------------------------------------------------------------ glossary health (findings from `ubiq health`)
 const RULES = [
   { key: 'long', name: 'Definition longer than two sentences', why: 'Keep definitions tight. One or two sentences max. Define what it IS, not what it does.' },
-  { key: 'orphan', name: 'Term nothing else mentions', why: 'A term no other definition refers to is either new vocabulary or a candidate for removal.' },
+  { key: 'orphan', name: 'Term nothing else mentions', why: 'A term no other definition or context relationship refers to is either new vocabulary or a candidate for removal.' },
   { key: 'unmapped', name: 'Same name in two contexts', why: 'A name two contexts both define is either a deliberate difference or a word one of them should drop.' },
   { key: 'unresolved', name: 'Bold phrase with no entry', why: 'A phrase written like a term is a claim that a term exists. Either add the entry or drop the bold.' },
 ];

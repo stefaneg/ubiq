@@ -50,7 +50,7 @@ func TestUnresolvedBoldPhrasesAreMarkedAndListed(t *testing.T) {
 	model := glossarytest.Load(t)
 	assert.Contains(t, model.Terms["common/repository"].Definition, `<span class="unres">Label</span>`)
 	require.Len(t, model.Unresolved, 1)
-	assert.Equal(t, glossary.Unresolved{Phrase: "Label", Context: "common", Where: "Repository"}, model.Unresolved[0])
+	assert.Equal(t, glossary.Unresolved{Phrase: "Label", Path: "GLOSSARY.md", Context: "common", Where: "Repository"}, model.Unresolved[0])
 }
 
 func TestHeadNounPluralsResolveToTheirTerm(t *testing.T) {

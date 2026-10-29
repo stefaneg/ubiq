@@ -55,9 +55,8 @@ func TestRunHealthPrintsFindingsAndExitsOne(t *testing.T) {
 	err := run([]string{"health", "-root", root}, nil, &out, &status)
 	require.True(t, errors.Is(err, errHealthFindings))
 	assert.Equal(t, "GLOSSARY.md: unresolved: Label: Common: Repository\n"+
-		"GLOSSARY.md:11: orphan: Image Ref: refers to 2, referenced by none\n"+
 		"GLOSSARY.md:15: long: Tag: 3 sentences\n"+
 		"GLOSSARY.md:25: unmapped: Run: also in Workspace\n"+
 		"internal/workspace/GLOSSARY.md:17: unmapped: Run: also in Common\n", out.String())
-	assert.Equal(t, "5 findings over 10 terms: 1 long, 1 orphan, 2 unmapped, 1 unresolved\n", status.String())
+	assert.Equal(t, "4 findings over 10 terms: 1 long, 0 orphan, 2 unmapped, 1 unresolved\n", status.String())
 }

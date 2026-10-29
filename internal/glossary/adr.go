@@ -137,6 +137,7 @@ func (r *Resolver) renderADRs(raws []rawADR) []ADR {
 	defer func() { r.lenient = false }()
 	var out []ADR
 	for _, a := range raws {
+		r.file = a.path
 		body := make([]string, len(a.body))
 		for i, ln := range a.body {
 			body[i] = r.autoBold(ln, res)

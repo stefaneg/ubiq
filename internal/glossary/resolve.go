@@ -51,6 +51,7 @@ type Resolver struct {
 	byContext map[string]map[string]string // context -> lowercase name -> id
 	model     *Model
 	order     []string // resolution order after a phrase's own context: map order
+	file      string   // the file being rendered, recorded on unresolved phrases
 	lenient   bool     // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
 }
 
@@ -173,7 +174,7 @@ func (r *Resolver) inline(text, ctx, where string) (string, []string) {
 			if r.lenient {
 				return "<b>" + phrase + "</b>"
 			}
-			r.model.Unresolved = append(r.model.Unresolved, Unresolved{Phrase: html.UnescapeString(phrase), Context: ctx, Where: where})
+			r.model.Unresolved = append(r.model.Unresolved, Unresolved{Phrase: html.UnescapeString(phrase), Path: r.file, Context: ctx, Where: where})
 			return `<span class="unres">` + phrase + `</span>`
 		}
 		if !seen[id] {
@@ -318,7 +319,7 @@ func (r *Resolver) block(lines []string, ctx, where string) (string, []string) {
 	return out.String(), ids
 }
 
-func build(contexts []*rawContext, adrs []rawADR) *Model {
+func build(contexts []*rawContext, rels []rawRelationship, adrs []rawADR) *Model {
 	m := &Model{Terms: map[string]*Term{}}
 	r := &Resolver{byContext: map[string]map[string]string{}, model: m}
 	// pass 1: register terms
@@ -337,6 +338,7 @@ func build(contexts []*rawContext, adrs []rawADR) *Model {
 	}
 	// pass 2: render
 	for _, rc := range contexts {
+		r.file = rc.path
 		intro, _ := r.block(rc.intro, rc.key, rc.name+" intro")
 		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: intro}
 		for _, cname := range rc.clusterOrder {
@@ -355,7 +357,37 @@ func build(contexts []*rawContext, adrs []rawADR) *Model {
 		}
 		m.Contexts = append(m.Contexts, c)
 	}
+	r.file = mapFile
+	m.Relationships = r.renderRelationships(contexts, rels)
 	m.ADRs = r.renderADRs(adrs)
 	sort.Slice(m.Unresolved, func(i, j int) bool { return m.Unresolved[i].Phrase < m.Unresolved[j].Phrase })
 	return m
+}
+
+// renderRelationships resolves each label's names to contexts, by heading or by the map's link text, and renders
+// the statement in the first context the label names.
+func (r *Resolver) renderRelationships(contexts []*rawContext, rels []rawRelationship) []ContextRelationship {
+	keys := map[string]string{}
+	for _, rc := range contexts {
+		keys[strings.ToLower(rc.name)] = rc.key
+		if rc.mapName != "" {
+			keys[strings.ToLower(rc.mapName)] = rc.key
+		}
+	}
+	var out []ContextRelationship
+	for _, rel := range rels {
+		cr := ContextRelationship{Label: rel.label}
+		for _, n := range labelNames(rel.label) {
+			if k, ok := keys[strings.ToLower(n)]; ok {
+				cr.Contexts = append(cr.Contexts, k)
+			}
+		}
+		ctx := ""
+		if len(cr.Contexts) > 0 {
+			ctx = cr.Contexts[0]
+		}
+		cr.HTML, cr.TermIDs = r.inline(rel.text, ctx, "relationship "+rel.label)
+		out = append(out, cr)
+	}
+	return out
 }

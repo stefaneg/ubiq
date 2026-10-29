@@ -43,7 +43,7 @@ GLOSSARY.md: unresolved: Beat Warning: Course Video Manager: Beat
 It applies four rules:
 
 - `long`: the definition is longer than two sentences.
-- `orphan`: no other term's definition refers to the term. ADRs do not count.
+- `orphan`: no other term's definition and no context relationship refers to the term. ADRs do not count.
 - `unmapped`: two contexts define the same name.
 - `unresolved`: a bold phrase matches no entry. The note names the context and the term where the phrase appears.
   An unresolved finding has no line number.
@@ -87,7 +87,10 @@ ubiq reads the layout that Matt Pocock's
   - [Billing](./src/billing/GLOSSARY.md): generates invoices and processes payments
   ```
 
-  A bold phrase resolves in its own context first, then in the others in map order.
+  The map's `## Relationships` section relates contexts, one bullet per relationship, such as
+  `- **Ordering → Billing**: each **Order** becomes an **Invoice**`. The bold label names contexts by their heading
+  or by their link text in `## Contexts`. A bold phrase resolves in its own context first, then in the others in map
+  order. In a relationship, its own context is the first one the label names.
 
 ADRs are read from `docs/adr/*.md` at the root and from `docs/adr/*.md` beside each context's glossary. With one
 context, the root ADRs belong to it. With several, the root ADRs are system-wide.

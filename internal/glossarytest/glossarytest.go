@@ -105,6 +105,12 @@ _Avoid_: stack container
 | --- | --- |
 | ` + "`internal/workspace/**`" + ` | Workspace |
 
+## Relationships
+
+- **Workspace → Stacks**: a **Stack Image** names a workspace **Image**.
+- **Stacks ↔ Common**: a **Stack Image** is pinned by an
+  **Image Ref**.
+
 ## Cross-context vocabulary
 
 ### Deliberate mirrors

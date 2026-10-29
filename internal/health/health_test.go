@@ -24,11 +24,10 @@ func TestCheckAppliesThePageRulesAndSortsByFileAndLine(t *testing.T) {
 	findings := Check(glossarytest.Load(t))
 	assert.Equal(t, []Finding{
 		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Label", Note: "Common: Repository"},
-		{Path: "GLOSSARY.md", Line: 11, Rule: "orphan", Name: "Image Ref", Note: "refers to 2, referenced by none", Term: "common/image-ref"},
 		{Path: "GLOSSARY.md", Line: 15, Rule: "long", Name: "Tag", Note: "3 sentences", Term: "common/tag"},
 		{Path: "GLOSSARY.md", Line: 25, Rule: "unmapped", Name: "Run", Note: "also in Workspace", Term: "common/run"},
 		{Path: "internal/workspace/GLOSSARY.md", Line: 17, Rule: "unmapped", Name: "Run", Note: "also in Common", Term: "workspace/run"},
-	}, findings, "file-level findings first, then by line; Repository is named by Tag's definition")
+	}, findings, "file-level findings first, then by line; a definition names Repository and a context relationship names Image Ref")
 }
 
 func TestCheckReportsAnOrphanThatOnlyAnADRMentions(t *testing.T) {
@@ -36,6 +35,7 @@ func TestCheckReportsAnOrphanThatOnlyAnADRMentions(t *testing.T) {
 	for id := range model.Terms {
 		model.Terms[id].Refs = nil
 	}
+	model.Relationships = nil
 	var orphans []string
 	for _, f := range Check(model) {
 		if f.Rule == "orphan" {

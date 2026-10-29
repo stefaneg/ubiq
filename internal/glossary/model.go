@@ -30,17 +30,29 @@ type Term struct {
 	Line       int      `json:"line"`
 }
 
+// ContextRelationship is one bullet of the context map's Relationships section, such as
+// "- **Ordering → Billing**: Ordering emits events Billing consumes".
+type ContextRelationship struct {
+	Label    string   `json:"label"`    // the bold label as written
+	Contexts []string `json:"contexts"` // keys of the contexts the label names, in label order
+	HTML     string   `json:"html"`     // the statement after the label
+	TermIDs  []string `json:"terms"`    // terms the statement refers to
+}
+
 type Unresolved struct {
 	Phrase  string `json:"phrase"`
+	Path    string `json:"path"` // the file the phrase is in
 	Context string `json:"context"`
 	Where   string `json:"where"`
 }
 
 type Model struct {
-	Contexts   []Context        `json:"contexts"`
-	Terms      map[string]*Term `json:"terms"`
-	Unresolved []Unresolved     `json:"unresolved"`
-	ADRs       []ADR            `json:"adrs"`
+	Contexts []Context        `json:"contexts"`
+	Terms    map[string]*Term `json:"terms"`
+	// Relationships is the context map's Relationships section; empty without a map.
+	Relationships []ContextRelationship `json:"relationships"`
+	Unresolved    []Unresolved          `json:"unresolved"`
+	ADRs          []ADR                 `json:"adrs"`
 }
 
 // ContextName is the heading of the context with key, or the key when the model has no such context.

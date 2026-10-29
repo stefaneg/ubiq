@@ -17,7 +17,7 @@ const (
 // skill describes. With a GLOSSARY-MAP.md, the contexts are the glossaries its Contexts section links; without one,
 // the root GLOSSARY.md is the only context.
 func Load(root string) (*Model, error) {
-	links, _, err := contextLinks(root)
+	links, mapLines, err := contextLinks(root)
 	if err != nil {
 		return nil, err
 	}
@@ -28,6 +28,7 @@ func Load(root string) (*Model, error) {
 		if err != nil {
 			return nil, err
 		}
+		rc.mapName = l.name
 		if rc.name == "" {
 			rc.name = l.name
 		}
@@ -45,7 +46,7 @@ func Load(root string) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	return build(contexts, adrs), nil
+	return build(contexts, parseMapRelationships(mapLines), adrs), nil
 }
 
 // contextLinks lists the context glossaries under root and returns the context map's lines, nil without a map.

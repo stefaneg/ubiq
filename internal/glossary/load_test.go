@@ -106,7 +106,7 @@ func TestLoadWithoutARootGlossaryKeepsMapOrder(t *testing.T) {
 	assert.Equal(t, "ordering", model.Contexts[0].Key)
 	assert.Equal(t, "src/ordering/GLOSSARY.md", model.Contexts[0].Path)
 	assert.Equal(t, "billing", model.Contexts[1].Key)
-	assert.Empty(t, model.Unresolved, "the map's Relationships section is not read as vocabulary")
+	assert.Empty(t, model.Unresolved)
 }
 
 func TestLoadReadsEachContextsOwnADRs(t *testing.T) {
@@ -160,4 +160,48 @@ func TestLoadErrors(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
+}
+
+func TestLoadReadsTheMapsRelationships(t *testing.T) {
+	model := glossarytest.Load(t)
+	require.Len(t, model.Relationships, 2)
+	first, second := model.Relationships[0], model.Relationships[1]
+	assert.Equal(t, "Workspace → Stacks", first.Label)
+	assert.Equal(t, []string{"workspace", "stacks"}, first.Contexts)
+	assert.Equal(t, []string{"stacks/stack-image", "workspace/image"}, first.TermIDs)
+	assert.Contains(t, first.HTML, `data-id="workspace/image"`)
+	assert.Equal(t, []string{"stacks", "common"}, second.Contexts)
+	assert.Equal(t, []string{"stacks/stack-image", "common/image-ref"}, second.TermIDs, "continuation lines join the bullet")
+}
+
+func TestRelationshipLabelsNameContextsByHeadingOrMapLink(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{
+		"GLOSSARY-MAP.md": `# Glossary Map
+
+## Contexts
+
+- [Orders](./ordering/GLOSSARY.md): takes orders
+- [Billing](./billing/GLOSSARY.md): sends invoices
+
+## Relationships
+
+- **Orders -> Billing**: each **Order** becomes an **Invoice**.
+- **Billing ↔ Ordering**: a **Refund** reverses an **Invoice**.
+- **Shipping → Billing**: no such context.
+- Without a label.
+`,
+		"ordering/GLOSSARY.md": "# Ordering\n\n## Language\n\n**Order**:\nA request for goods.\n",
+		"billing/GLOSSARY.md":  "# Billing\n\n## Language\n\n**Invoice**:\nA request for payment.\n",
+	})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	require.Len(t, model.Relationships, 4)
+	assert.Equal(t, []string{"ordering", "billing"}, model.Relationships[0].Contexts, "by the map's link text")
+	assert.Equal(t, []string{"ordering/order", "billing/invoice"}, model.Relationships[0].TermIDs)
+	assert.Equal(t, []string{"billing", "ordering"}, model.Relationships[1].Contexts, "by heading")
+	assert.Equal(t, []string{"billing"}, model.Relationships[2].Contexts)
+	assert.Equal(t, glossary.ContextRelationship{HTML: "Without a label."}, model.Relationships[3])
+	require.Len(t, model.Unresolved, 1)
+	assert.Equal(t, glossary.Unresolved{Phrase: "Refund", Path: "GLOSSARY-MAP.md", Context: "billing", Where: "relationship Billing ↔ Ordering"}, model.Unresolved[0])
 }

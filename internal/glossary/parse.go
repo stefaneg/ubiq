@@ -24,6 +24,7 @@ type rawCluster struct {
 
 type rawContext struct {
 	key, name, path string
+	mapName         string // the link text the context map names the context by; empty without a map
 	intro           []string
 	clusters        map[string]*rawCluster
 	clusterOrder    []string
@@ -153,6 +154,53 @@ func parseMapContexts(lines []string) []contextLink {
 				seen[rel] = true
 				out = append(out, contextLink{name: m[1], rel: rel})
 			}
+		}
+	}
+	return out
+}
+
+type rawRelationship struct {
+	label, text string
+}
+
+var reRelationship = regexp.MustCompile(`^\*\*([^*]+)\*\*:\s*(.*)$`)
+
+// parseMapRelationships reads the unindented bullets under "## Relationships", joining their indented continuation
+// lines. A bullet without a bold label keeps its whole text as the statement.
+func parseMapRelationships(lines []string) []rawRelationship {
+	var out []rawRelationship
+	in := false
+	for i := 0; i < len(lines); i++ {
+		if m := reH.FindStringSubmatch(lines[i]); m != nil && len(m[1]) <= 2 {
+			in = len(m[1]) == 2 && strings.EqualFold(strings.TrimSpace(m[2]), "Relationships")
+			continue
+		}
+		m := reBullet.FindStringSubmatch(lines[i])
+		if !in || m == nil || m[1] != "" {
+			continue
+		}
+		text := m[2]
+		for i+1 < len(lines) && strings.HasPrefix(lines[i+1], "  ") && strings.TrimSpace(lines[i+1]) != "" {
+			i++
+			text += " " + strings.TrimSpace(lines[i])
+		}
+		if l := reRelationship.FindStringSubmatch(text); l != nil {
+			out = append(out, rawRelationship{label: strings.TrimSpace(l[1]), text: l[2]})
+		} else {
+			out = append(out, rawRelationship{text: text})
+		}
+	}
+	return out
+}
+
+var reLabelSep = regexp.MustCompile(`\s*(?:<->|->|<-|[→↔←⇄,&]|\band\b)\s*`)
+
+// labelNames splits a relationship label such as "Ordering → Billing" into the names it joins.
+func labelNames(label string) []string {
+	var out []string
+	for _, n := range reLabelSep.Split(label, -1) {
+		if n = strings.TrimSpace(n); n != "" {
+			out = append(out, n)
 		}
 	}
 	return out

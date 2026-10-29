@@ -24,7 +24,7 @@ type Finding struct {
 // Check applies the page's health rules to the model and returns the findings sorted by file, line and rule.
 //
 //	long       definition longer than two sentences
-//	orphan     no other term's definition refers to the term (ADRs do not count)
+//	orphan     no other term's definition and no context relationship refers to the term (ADRs do not count)
 //	unmapped   a term name defined in two contexts
 //	unresolved a bold phrase with no entry
 func Check(model *glossary.Model) []Finding {
@@ -34,6 +34,11 @@ func Check(model *glossary.Model) []Finding {
 	}
 	inbound := map[string]int{}
 	byName := map[string][]string{}
+	for _, rel := range model.Relationships {
+		for _, id := range rel.TermIDs {
+			inbound[id]++
+		}
+	}
 	for id, t := range model.Terms {
 		for _, r := range t.Refs {
 			inbound[r]++
@@ -69,7 +74,7 @@ func Check(model *glossary.Model) []Finding {
 		}
 	}
 	for _, u := range model.Unresolved {
-		out = append(out, Finding{Path: paths[u.Context], Rule: "unresolved", Name: u.Phrase,
+		out = append(out, Finding{Path: u.Path, Rule: "unresolved", Name: u.Phrase,
 			Note: model.ContextName(u.Context) + ": " + u.Where})
 	}
 	sort.Slice(out, func(i, j int) bool {
