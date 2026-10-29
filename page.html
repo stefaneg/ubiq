@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>glossary</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#1b1d21;--fg:#e8e8e4;--muted:#9aa0a8;--line:#34373d;--panel:#24272d;--panel2:#2b2f36;
+  --accent:#8ab4f8;--accent-bg:#2a3a52;--amber:#f2c377;--amber-bg:#3d3222;
+  --rose:#f49ab0;--rose-bg:#45262e;--teal:#7fd3c4;--teal-bg:#1f3a37;
+  --common:#c3b5f0;--workspace:#8ab4f8;--stacks:#7fd3c4;--common-bg:#332b4a;
+  --navw:260px;
+  font-family: ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-size:15px;line-height:1.5}
+a{color:var(--accent)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em;background:#15171a;color:#d6d9de;padding:0 .3em;border-radius:3px}
+h1,h2,h3,h4{margin:0;font-weight:600;line-height:1.25}
+h4{font-size:.75em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:1.2em 0 .3em}
+p{margin:.35em 0}
+ul,ol{margin:.3em 0;padding-left:1.3em}
+li{margin:.2em 0}
+a.t{color:var(--accent);text-decoration:none;border-bottom:1px dotted #5a7399;font-weight:500}
+a.t:hover{background:var(--accent-bg)}
+.unres{color:var(--rose);border-bottom:1px dashed var(--rose);font-weight:500;cursor:help}
+.unres.cand{border-bottom-style:dotted}
+.avoid{color:var(--muted);font-size:.85em}
+.avoid b{font-weight:600;color:var(--muted)}
+.chip{display:inline-block;font-size:.7em;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:.1em .5em;border-radius:999px;vertical-align:middle;margin-left:.4em}
+.chip.common{background:var(--common-bg);color:var(--common)}
+.chip.workspace{background:var(--accent-bg);color:var(--workspace)}
+.chip.stacks{background:var(--teal-bg);color:var(--stacks)}
+.chip.amb{background:var(--amber-bg);color:var(--amber)}
+.chip.col{background:var(--rose-bg);color:var(--rose)}
+.chip.map{background:#383c44;color:#b8bec8}
+.chip.also{background:#323941;color:#b0bac6;text-transform:none;letter-spacing:0}
+.muted{color:var(--muted)}
+.small{font-size:.85em}
+table.md{border-collapse:collapse;margin:.6em 0;font-size:.9em;background:var(--panel)}
+table.md th,table.md td{border:1px solid var(--line);padding:.3em .7em;text-align:left;vertical-align:top}
+table.md th{background:var(--panel2);font-weight:600}
+.mdh{font-size:.8em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:1.2em 0 .3em}
+/* popover */
+#pop{position:fixed;z-index:50;max-width:420px;background:#0f1012;color:#f5f5f2;border:1px solid #3d4148;padding:.6em .8em;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);font-size:.9em;line-height:1.45;display:none;pointer-events:none}
+#pop .n{font-weight:600;margin-bottom:.2em}
+#pop .flag{margin-top:.4em;font-size:.85em;color:#fcd79a}
+#pop .flag.col{color:#fda4b8}
+#pop .flag.also{color:#b0bac6}
+#pop .flag.unres{color:#f49ab0}
+#pop .hint{margin-top:.4em;color:#b0bac6;font-size:.85em}
+/* layout: index | handle | main */
+#app{display:grid;grid-template-columns:var(--navw) 6px minmax(0,1fr);height:100vh}
+.nav{height:100vh;overflow:auto;border-right:1px solid var(--line);padding:1em .8em;background:var(--panel);font-size:.85em}
+.nav .tools{display:flex;flex-wrap:wrap;gap:.3em .9em;margin-bottom:.8em}
+.nav .tools a{color:#c3c7cd;text-decoration:none;padding:.1em 0;border-bottom:1px solid transparent}
+.nav .tools a:hover,.nav .tools a.sel{color:var(--accent)}
+.nav .tools a.sel{border-bottom-color:var(--accent)}
+.nav .navFilter{width:100%;padding:.4em .6em;border:1px solid var(--line);border-radius:6px;font:inherit;margin-bottom:.8em;background:var(--bg);color:var(--fg)}
+.nav .ctx{margin-top:.8em;font-weight:700;text-transform:uppercase;font-size:.75em;letter-spacing:.05em}
+.nav .ctx.common{color:var(--common)}.nav .ctx.workspace{color:var(--workspace)}.nav .ctx.stacks{color:var(--stacks)}
+.nav .ctx.extra{color:#d0d3d8;margin-top:1.4em;padding-top:.8em;border-top:1px solid var(--line)}
+.nav .cl{margin:.4em 0 .1em .2em;font-weight:600;color:#d0d3d8}
+.nav .cl .cnt{color:var(--muted);font-weight:400}
+.nav a.item{display:block;padding:.05em 0 .05em 1em;color:#c3c7cd;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav a.item:hover{color:var(--accent)}
+.nav a.item.sel{color:var(--accent);font-weight:600}
+.handle{width:6px;cursor:col-resize;background:transparent;border-left:1px solid var(--line);transition:background .15s}
+.handle:hover{background:#3f4a5a}
+body.dragging{cursor:col-resize;user-select:none}
+body.dragging .handle{background:#5a7399}
+.mainwrap{overflow:auto;padding:0 2em 6em;height:100vh}
+.top{display:flex;gap:1em;align-items:center;position:sticky;top:0;background:var(--bg);padding:1em 0 .6em;z-index:5;border-bottom:1px solid var(--line)}
+.top h1{font-size:1.1em;white-space:nowrap}
+.top h1 a{color:inherit;text-decoration:none}
+.top h1 a:hover{color:var(--accent)}
+.search{position:relative;flex:1}
+.search input{width:100%;padding:.55em .8em;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:1em;background:var(--panel);color:var(--fg)}
+.results{position:absolute;left:0;right:0;top:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:60vh;overflow:auto;display:none}
+.results a{display:flex;justify-content:space-between;padding:.4em .8em;color:inherit;text-decoration:none}
+.results a:hover,.results a.hot{background:var(--accent-bg)}
+.results .d{color:var(--muted);font-size:.85em;margin-left:1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%}
+.trail{font-size:.8em;color:var(--muted);margin:.8em 0}
+.trail a{color:var(--muted);text-decoration:none}
+.trail a:hover{color:var(--accent)}
+.body{max-width:1000px}
+/* term card */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1.4em 1.6em;margin-top:.5em}
+.card h2{font-size:1.5em}
+.card .def{font-size:1.05em;margin:.6em 0}
+.card .graph{margin:1em -1.6em 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#1f2227}
+.graph svg{display:block;width:100%;height:auto}
+.card .sections{margin-top:1em;font-size:.92em}
+.card .sections > h4:first-child{margin-top:1.2em}
+.card .same{margin:.8em 0 .4em;padding:.6em .8em;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
+.card .same h4{margin-top:0}
+.card .same .note{border-left-width:3px}
+.note{padding:.35em .6em;border-left:2px solid var(--line);margin:.3em 0}
+.note.amb{border-left-color:var(--amber);background:var(--amber-bg)}
+.note.map{border-left-color:#6b7078;background:var(--panel2)}
+.note.col{border-left-color:var(--rose)}
+.note.lint{border-left-color:var(--amber)}
+details.note summary{cursor:pointer;font-weight:600}
+details.note[open] summary{margin-bottom:.4em}
+details.note.hi{outline:1px solid var(--accent)}
+/* landing */
+.landing .cl{margin:.4em 0 1em}
+.landing .cl h3{font-size:.95em;margin:.8em 0 .2em}
+.landing a.t{display:inline-block;margin:.15em .3em .15em 0;padding:.1em .5em;border:1px solid var(--line);border-radius:999px;background:var(--panel);border-bottom:1px solid var(--line)}
+.landing a.t.amb{border-color:#8a6a2e}
+.landing h2{margin-top:1.5em;font-size:1.1em}
+/* vocabulary check */
+.check textarea{width:100%;min-height:9em;font:inherit;font-size:.95em;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:.7em .9em;resize:vertical}
+.check .out{margin-top:1em;padding:.9em 1.1em;border:1px solid var(--line);border-radius:8px;background:var(--panel);white-space:pre-wrap;line-height:1.7}
+.check table.md{width:100%}
+.legend2{font-size:.85em;color:var(--muted);margin:.5em 0}
+.legend2 span{margin-right:1.2em}
+/* ADR + context map */
+.adrbody{font-size:.95em;margin-top:1em}
+.adrbody p{margin:.6em 0}
+.adr .terms a.t{display:inline-block;margin:.15em .3em .15em 0;padding:.05em .5em;border:1px solid var(--line);border-radius:999px;background:var(--panel2)}
+.mapsvg{margin:1em -1.6em;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#1f2227}
+.mapsvg svg{display:block;width:100%;height:auto}
+.mrow{cursor:pointer}
+.mrow:hover text{fill:var(--accent)}
+.mrow text{font-size:11px;fill:#d6d9de}
+.mrow .lk{stroke-width:2}
+.mrow.mirror .lk{stroke:#8ab4f8}.mrow.resolved .lk{stroke:var(--teal)}.mrow.collision .lk{stroke:var(--rose)}.mrow.anchor .lk{stroke:var(--common)}
+.mrow circle{stroke-width:1.5;fill:#2b2f36}
+.mrow circle.faint{opacity:.45}
+.mrow circle.common{stroke:var(--common)}.mrow circle.workspace{stroke:var(--workspace)}.mrow circle.stacks{stroke:var(--stacks)}
+.lane{font-size:12px;font-weight:600;fill:#d0d3d8}
+.laneline{stroke:#34373d;stroke-dasharray:2 4}
+/* health */
+.health .rule{margin:1em 0;padding:.8em 1em;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.health .rule h3{font-size:1em}
+.health .rule .n{display:inline-block;min-width:2.2em;text-align:center;padding:.05em .5em;border-radius:999px;background:var(--panel2);margin-right:.5em;font-size:.9em}
+.health .rule .n.zero{color:var(--muted)}
+.health .rule .n.hot{background:var(--amber-bg);color:var(--amber)}
+.health .rule .why{color:var(--muted);font-size:.88em;margin:.2em 0 .5em}
+.health .rule .why q{color:#c3c7cd}
+.health ul{columns:2;column-gap:2em;font-size:.92em}
+.health ul li{break-inside:avoid}
+/* svg nodes */
+.node{cursor:pointer}
+.node circle{fill:#2b2f36;stroke:#9aa0a8;stroke-width:1.5}
+.node.common circle{stroke:var(--common)}.node.workspace circle{stroke:var(--workspace)}.node.stacks circle{stroke:var(--stacks)}
+.node.amb circle{fill:var(--amber-bg)}
+.node.col .ring{fill:none;stroke:var(--rose);stroke-width:1}
+.node.centre circle{fill:#e8e8e4;stroke:#e8e8e4}
+.node.centre text{fill:#f3f3f0;font-weight:600;font-size:12px}
+.node text{font-size:11px;fill:#d6d9de;pointer-events:none}
+.edge{stroke:#6b7480;stroke-width:1.2;fill:none}
+.edge.rel{stroke:#4a515b;stroke-dasharray:3 3}
+.elabel{font-size:10px;fill:var(--muted)}
+</style>
+</head>
+<body>
+<div id="app"><nav class="nav"></nav><div class="handle" title="drag to resize"></div><div class="mainwrap"><div class="top"><h1><a href="#" title="home">glossary</a></h1><div class="search"></div></div><div class="trail"></div><div class="body"></div></div></div>
+<div id="pop"></div>
+<script>const DATA=/*__DATA__*/null;</script>
+<script>
+// ------------------------------------------------------------------ model
+const T = DATA.terms;
+for (const id in T) { T[id].refs = (T[id].refs || []).filter(x => x !== id); T[id].redirects ||= []; }
+DATA.notes.forEach(n => n.terms ||= []);
+DATA.map.forEach(e => e.terms ||= []);
+DATA.contexts.forEach(c => c.clusters.forEach(cl => cl.terms ||= []));
+DATA.adrs ||= []; DATA.adrs.forEach(a => a.terms ||= []);
+DATA.unresolved ||= [];
+const CTX_NAME = {common:'Common', workspace:'Workspace', stacks:'Stacks'};
+const CTX_ORDER = ['workspace', 'common', 'stacks'];
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const inbound = {}, notesFor = {}, mapFor = {}, adrsFor = {}, byName = {}, ADR = {};
+for (const id in T) { inbound[id] = []; notesFor[id] = []; mapFor[id] = []; adrsFor[id] = []; (byName[T[id].name.toLowerCase()] ||= []).push(id); }
+for (const id in T) for (const r of T[id].refs) inbound[r].push(id);
+DATA.notes.forEach(n => { for (const id of n.terms) notesFor[id].push(n); });
+DATA.map.forEach(e => { for (const id of e.terms) mapFor[id].push(e); });
+DATA.adrs.forEach(a => { ADR[a.id] = a; for (const id of a.terms) adrsFor[id].push(a); });
+// redirectIndex: avoided word -> terms that list it as a synonym (short forms of the term's own name excluded by the generator)
+const redirectIndex = {};
+for (const id in T) for (const w of T[id].redirects) (redirectIndex[w] ||= []).push(id);
+const trueCollision = new Set(DATA.map.filter(e => e.kind === 'collision').map(e => e.name.toLowerCase()));
+const ambNotes = id => notesFor[id].filter(n => n.kind === 'ambiguity');
+const relNotes = id => notesFor[id].filter(n => n.kind === 'relationship');
+const sameWord = id => byName[T[id].name.toLowerCase()].filter(x => x !== id);
+const isCollision = id => trueCollision.has(T[id].name.toLowerCase()) && sameWord(id).length > 0;
+const isAmb = id => ambNotes(id).length > 0;
+const tmp = document.createElement('div');
+const textOf = h => { tmp.innerHTML = h; return tmp.textContent; };
+const chip = (cls, txt, title) => `<span class="chip ${cls}" title="${esc(title || '')}">${txt}</span>`;
+const link = (id, cls = '') => `<a class="t ${cls}" href="#${id}" data-id="${id}">${esc(T[id].name)}</a>`;
+const avoidLine = t => t.avoid ? `<div class="avoid"><b>Avoid:</b> ${esc(t.avoid)}</div>` : '';
+const ctxChip = id => chip(T[id].context, CTX_NAME[T[id].context]);
+function badges(id, withCtx = true) {
+  const t = T[id]; let s = '';
+  if (withCtx) s += chip(t.context, CTX_NAME[t.context], t.cluster);
+  if (isAmb(id)) s += chip('amb', '⚠ ambiguity', ambNotes(id).map(n => textOf(n.html)).join('\n\n'));
+  const sw = sameWord(id);
+  if (isCollision(id)) s += chip('col', '⇄ collision', 'Same entry name, different meaning, in ' + sw.map(x => CTX_NAME[T[x].context]).join(', '));
+  else if (sw.length) s += chip('also', 'also in ' + sw.map(x => CTX_NAME[T[x].context]).join(', '), 'Same entry name defined in another context (a deliberate mirror or shared noun)');
+  const m = mapFor[id].filter(e => e.kind !== 'anchor' && e.kind !== 'collision');
+  if (m.length) s += chip('map', 'map: ' + m.map(e => e.kind).filter((v, i, a) => a.indexOf(v) === i).join('/'), 'Mentioned in: ' + m.map(e => e.name).join(', '));
+  return s;
+}
+// Co-mentioned terms via relationship bullets, excluding definition refs.
+function related(id) {
+  const out = new Map();
+  for (const n of relNotes(id)) for (const x of n.terms) if (x !== id) out.set(x, (out.get(x) || 0) + 1);
+  for (const x of T[id].refs) out.delete(x);
+  for (const x of inbound[id]) out.delete(x);
+  return [...out.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+}
+// ------------------------------------------------------------------ popover
+const pop = document.getElementById('pop');
+function popUnresolved(u) {
+  const phrase = u.textContent, av = redirectIndex[phrase.toLowerCase()] || [];
+  return `<div class="n">${esc(phrase)}</div><div class="flag unres">No glossary entry. This phrase is marked like a term (${u.classList.contains('cand') ? 'a Capitalised Phrase in the checked text' : 'bold in the file'}), but no GLOSSARY.md defines it.</div>`
+    + (av.length ? `<div class="hint">Listed under <b>Avoid</b> by ${av.map(x => T[x].name + ' (' + CTX_NAME[T[x].context] + ')').join(', ')}: the glossary says to use that term instead.</div>` : `<div class="hint">Either add an entry, or drop the bold so it reads as plain text.</div>`);
+}
+function popTerm(id) {
+  const t = T[id]; let flags = '';
+  const amb = ambNotes(id); if (amb.length) flags += `<div class="flag">⚠ Flagged ambiguity: ${esc(textOf(amb[0].html))}${amb.length > 1 ? ` (+${amb.length - 1} more)` : ''}</div>`;
+  const sw = sameWord(id);
+  if (isCollision(id)) flags += `<div class="flag col">⇄ Also defined in ${sw.map(x => CTX_NAME[T[x].context]).join(', ')} with a different meaning</div>`;
+  else if (sw.length) flags += `<div class="flag also">Also defined in ${sw.map(x => CTX_NAME[T[x].context]).join(', ')} (same shape)</div>`;
+  return `<div class="n">${esc(t.name)}${ctxChip(id)}</div><div>${esc(textOf(t.definition))}</div>${flags}`;
+}
+document.addEventListener('mouseover', e => {
+  const u = e.target.closest('.unres'), a = e.target.closest('a.t, .node');
+  let h = '';
+  if (u) h = popUnresolved(u);
+  else if (a && T[a.dataset.id]) h = popTerm(a.dataset.id);
+  if (!h) return;
+  pop.innerHTML = h; pop.style.display = 'block'; place(e);
+});
+document.addEventListener('mousemove', e => { if (pop.style.display === 'block') place(e); });
+document.addEventListener('mouseout', e => { if (e.target.closest('a.t, .node, .unres')) pop.style.display = 'none'; });
+document.addEventListener('click', e => { const n = e.target.closest('.node'); if (n && n.dataset.id) { location.hash = n.dataset.id; pop.style.display = 'none'; } });
+function place(e) {
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  let x = e.clientX + 14, y = e.clientY + 18;
+  if (x + w > innerWidth - 8) x = e.clientX - w - 10;
+  if (y + h > innerHeight - 8) y = e.clientY - h - 10;
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+}
+// ------------------------------------------------------------------ neighbourhood diagram
+const nodeCls = id => `node ${isAmb(id) ? 'amb' : ''} ${isCollision(id) ? 'col' : ''} ${T[id].context}`;
+const nodeSvg = (d, label) => `<g class="${nodeCls(d.id)}" data-id="${d.id}" transform="translate(${d.x.toFixed(1)},${d.y.toFixed(1)})"><circle r="7"></circle>${isCollision(d.id) ? '<circle class="ring" r="10"></circle>' : ''}<text x="0" y="19" text-anchor="middle">${esc(label)}</text></g>`;
+// Referenced-by left, refers-to right, co-mentioned along the bottom.
+function neighbourhood(id, W = 940) {
+  const outs = T[id].refs, ins = inbound[id].filter(x => !outs.includes(x)), rel = related(id).slice(0, 10);
+  const rowH = 26, colX = 170;
+  const topH = Math.max(160, Math.max(outs.length, ins.length) * rowH + 60);
+  const H = topH + (rel.length ? 70 : 0);
+  const cx = W / 2, cy = topH / 2;
+  let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  const col = (ids, x, anchor) => ids.map((x2, i) => ({ id: x2, x, y: cy - (ids.length - 1) * rowH / 2 + i * rowH, anchor }));
+  const L = col(ins, colX, 'end'), R = col(outs, W - colX, 'start');
+  for (const d of L) s += `<path class="edge" d="M${d.x + 8},${d.y} C${cx - 60},${d.y} ${cx - 60},${cy} ${cx - 10},${cy}" marker-end="url(#arr)"/>`;
+  for (const d of R) s += `<path class="edge" d="M${cx + 10},${cy} C${cx + 60},${cy} ${cx + 60},${d.y} ${d.x - 8},${d.y}" marker-end="url(#arr)"/>`;
+  const relNodes = rel.map((x, i) => ({ id: x, x: 80 + (W - 160) * (rel.length === 1 ? .5 : i / (rel.length - 1)), y: H - 36 }));
+  for (const d of relNodes) s += `<path class="edge rel" d="M${cx},${cy + 10} L${d.x},${d.y - 8}"/>`;
+  s += `<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7480"/></marker></defs>`;
+  s += `<text class="elabel" x="${colX}" y="${cy - (Math.max(ins.length, 1) - 1) * rowH / 2 - 22}" text-anchor="end">referenced by (${ins.length})</text><text class="elabel" x="${W - colX}" y="${cy - (Math.max(outs.length, 1) - 1) * rowH / 2 - 22}">refers to (${outs.length})</text>`;
+  if (rel.length) s += `<text class="elabel" x="${cx}" y="${H - 58}" text-anchor="middle">co-mentioned in relationships (${related(id).length})</text>`;
+  const side = d => `<g class="${nodeCls(d.id)}" data-id="${d.id}" transform="translate(${d.x},${d.y})"><circle r="6"></circle>${isCollision(d.id) ? '<circle class="ring" r="9"></circle>' : ''}<text x="${d.anchor === 'end' ? -12 : 12}" y="4" text-anchor="${d.anchor}">${esc(T[d.id].name)}</text></g>`;
+  s += L.map(side).join('') + R.map(side).join('') + relNodes.map(d => nodeSvg(d, T[d.id].name)).join('');
+  s += `<g class="node centre" data-id="${id}" transform="translate(${cx},${cy})"><circle r="10"></circle><text x="0" y="-16" text-anchor="middle">${esc(T[id].name)}</text></g></svg>`;
+  return s;
+}
+// ------------------------------------------------------------------ term card
+const adrLink = a => `<a href="#${a.id}">${esc(a.title)}</a>`;
+function sameWordBlock(id) {
+  const sw = sameWord(id); if (!sw.length) return '';
+  return `<div class="same"><h4>${isCollision(id) ? '⇄ Same entry, different meaning' : 'Same entry in another context, same shape'}</h4>${sw.map(x => `<div class="note ${isCollision(id) ? 'col' : ''}">${link(x)}${ctxChip(x)}<div class="small muted">${esc(textOf(T[x].definition))}</div></div>`).join('')}</div>`;
+}
+function decisionsBlock(id) {
+  return `<h4>Decisions touching this term (${adrsFor[id].length})</h4>` + (adrsFor[id].map(a => `<div class="note">${adrLink(a)} ${chip(a.context, CTX_NAME[a.context])}<div class="small muted">${esc(a.path)}</div></div>`).join('') || '<div class="muted">no ADR names this term</div>');
+}
+function healthBlock(id) {
+  const f = termFindings(id);
+  return `<h4>Health (${f.length})</h4>` + (f.map(({ r, x }) => `<div class="note lint"><b>${esc(r.name)}</b> <span class="muted small">${esc(x.note)}</span></div>`).join('') || '<div class="muted">no findings</div>');
+}
+function termCard(id) {
+  const t = T[id];
+  return `<div class="card"><h2>${esc(t.name)}${badges(id)}</h2><div class="muted small">${esc(t.cluster)} · line ${t.line} of ${esc(DATA.contexts.find(c => c.key === t.context).path)}</div>
+    <div class="def">${t.definition}</div>${avoidLine(t)}
+    ${sameWordBlock(id)}
+    <div class="graph">${neighbourhood(id)}</div>
+    <div class="sections"><h4>Relationships (${relNotes(id).length})</h4>${relNotes(id).map(n => `<div class="note">${n.html}</div>`).join('') || '<div class="muted">none stated</div>'}
+    <h4>Flagged ambiguities (${ambNotes(id).length})</h4>${ambNotes(id).map(n => `<div class="note amb">⚠ ${n.html}</div>`).join('') || '<div class="muted">none</div>'}
+    ${mapFor[id].length ? `<h4>Context map</h4>${mapFor[id].map(e => `<div class="note map"><b>${esc(e.name)}</b> <span class="muted small">${e.kind}</span>${e.html}</div>`).join('')}` : ''}
+    ${decisionsBlock(id)}${healthBlock(id)}</div></div>`;
+}
+// Landing: every term as a chip, grouped by context and cluster.
+function landingHtml() {
+  let h = '<div class="landing"><p class="muted">Pick a term to explore it with its neighbourhood. ⚠-bordered chips carry a flagged ambiguity.</p>';
+  for (const c of DATA.contexts) { h += `<h2>${esc(c.name)}${chip(c.key, c.key)}</h2>`; for (const cl of c.clusters) if (cl.terms.length) h += `<div class="cl"><h3>${esc(cl.name)}</h3>${cl.terms.map(id => link(id, isAmb(id) ? 'amb' : '')).join('')}</div>`; }
+  return h + '</div>';
+}
+// ------------------------------------------------------------------ index
+function navTree(nav) {
+  let h = `<div class="tools"><a href="#check" data-id="check">Vocabulary check</a><a href="#health" data-id="health">Health report</a><a href="#map" data-id="map">Context map</a></div><input type="search" placeholder="filter index…" class="navFilter">`;
+  for (const c of DATA.contexts) {
+    h += `<div class="ctx ${c.key}">${esc(c.name)}</div>`;
+    for (const cl of c.clusters) if (cl.terms.length) h += `<div class="cl">${esc(cl.name)} <span class="cnt">${cl.terms.length}</span></div>` + cl.terms.map(id => `<a class="item" href="#${id}" data-id="${id}">${isAmb(id) ? '⚠ ' : ''}${esc(T[id].name)}</a>`).join('');
+  }
+  if (DATA.adrs.length) h += `<div class="ctx extra">Decisions (ADRs)</div>` + DATA.adrs.map(a => `<a class="item" href="#${a.id}" data-id="${a.id}" title="${esc(a.title)}">${esc(a.title)}</a>`).join('');
+  nav.innerHTML = h;
+  nav.querySelector('.navFilter').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    nav.querySelectorAll('a.item').forEach(a => a.style.display = (T[a.dataset.id] ? T[a.dataset.id].name : a.textContent).toLowerCase().includes(q) ? '' : 'none');
+    nav.querySelectorAll('.cl').forEach(h => { let n = h.nextElementSibling, any = false; while (n && n.tagName === 'A') { if (n.style.display !== 'none') any = true; n = n.nextElementSibling; } h.style.display = any ? '' : 'none'; });
+  });
+}
+function navSelect(nav, id) {
+  nav.querySelectorAll('a.sel').forEach(e => e.classList.remove('sel'));
+  const na = id && nav.querySelector(`a[data-id="${CSS.escape(id)}"]`);
+  if (!na) return;
+  na.classList.add('sel');
+  if (na.classList.contains('item')) { const top = na.offsetTop - nav.clientHeight / 2; if (Math.abs(nav.scrollTop - top) > nav.clientHeight / 2) nav.scrollTop = top; }
+}
+// Search box: names and Avoid words, keyboard-driven, `/` focuses.
+const avoidWords = t => (t.avoid || '').split(/,\s*/).map(w => w.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase()).filter(Boolean);
+function searchBox(wrap) {
+  wrap.innerHTML = `<input placeholder="search a term… (type, ↑↓, Enter)" autocomplete="off"><div class="results"></div>`;
+  const q = wrap.querySelector('input'), res = wrap.querySelector('.results');
+  const all = Object.keys(T).sort((a, b) => T[a].name.localeCompare(T[b].name));
+  let hot = 0;
+  function search() {
+    const v = q.value.trim().toLowerCase(); if (!v) { res.style.display = 'none'; return; }
+    const hits = all.filter(id => T[id].name.toLowerCase().includes(v) || avoidWords(T[id]).some(w => w.includes(v))).slice(0, 25);
+    hot = 0;
+    res.innerHTML = hits.map((id, i) => { const viaAvoid = !T[id].name.toLowerCase().includes(v) && avoidWords(T[id]).find(w => w.includes(v));
+      return `<a href="#${id}" class="${i === 0 ? 'hot' : ''}"><span>${esc(T[id].name)}${badges(id)}</span><span class="d">${viaAvoid ? `avoid “${esc(viaAvoid)}” → use this` : esc(textOf(T[id].definition))}</span></a>`; }).join('') || '<a>no match</a>';
+    res.style.display = 'block';
+  }
+  q.addEventListener('input', search);
+  q.addEventListener('focus', search);
+  q.addEventListener('blur', () => setTimeout(() => res.style.display = 'none', 150));
+  q.addEventListener('keydown', e => {
+    const as = res.querySelectorAll('a[href]'); if (!as.length) return;
+    if (e.key === 'ArrowDown') { hot = (hot + 1) % as.length; e.preventDefault(); } else if (e.key === 'ArrowUp') { hot = (hot - 1 + as.length) % as.length; e.preventDefault(); }
+    else if (e.key === 'Enter') { location.hash = as[hot].getAttribute('href'); q.value = ''; res.style.display = 'none'; q.blur(); return; }
+    as.forEach((a, i) => a.classList.toggle('hot', i === hot));
+  });
+  document.addEventListener('keydown', e => { if (e.key === '/' && !e.target.matches('input,textarea')) { e.preventDefault(); q.focus(); } });
+}
+// Draggable splitter: sets --navw on the app; width lives in memory only.
+function splitter(root, handle) {
+  handle.addEventListener('mousedown', e => {
+    const startX = e.clientX, startW = parseFloat(getComputedStyle(root).getPropertyValue('--navw')) || 260;
+    document.body.classList.add('dragging'); e.preventDefault();
+    const move = ev => root.style.setProperty('--navw', Math.max(160, Math.min(640, startW + ev.clientX - startX)) + 'px');
+    const up = () => { document.body.classList.remove('dragging'); removeEventListener('mousemove', move); removeEventListener('mouseup', up); };
+    addEventListener('mousemove', move); addEventListener('mouseup', up);
+  });
+}
+// ------------------------------------------------------------------ vocabulary check (same rules as `glossary check`)
+function checkText(text) {
+  const phrases = [];
+  for (const id in T) phrases.push({ p: T[id].name.toLowerCase(), ids: [id] });
+  phrases.sort((a, b) => b.p.length - a.p.length);
+  const byPhrase = {}; phrases.forEach(x => byPhrase[x.p] ||= x);
+  const re = new RegExp('(?<![\\w-])(' + phrases.map(x => escRe(x.p)).join('|') + ')(s|es)?(?![\\w-])', 'gi');
+  const hits = { term: new Map(), cand: new Map() };
+  const segs = [];
+  text.replace(re, (m, p, pl, off) => { segs.push({ off, len: m.length, x: byPhrase[p.toLowerCase()] }); return m; });
+  const candRe = /\b([A-Z][a-z]+(?:[- ][A-Z][a-z]+)+)\b/g;
+  let cm; while ((cm = candRe.exec(text))) if (!segs.some(sg => cm.index < sg.off + sg.len && cm.index + cm[0].length > sg.off)) segs.push({ off: cm.index, len: cm[0].length, cand: true });
+  segs.sort((a, b) => a.off - b.off);
+  let out = '', last = 0;
+  for (const sg of segs) {
+    if (sg.off < last) continue;
+    out += esc(text.slice(last, sg.off));
+    const m = text.slice(sg.off, sg.off + sg.len);
+    if (sg.cand) { hits.cand.set(m, (hits.cand.get(m) || 0) + 1); out += `<span class="unres cand">${esc(m)}</span>`; }
+    else { const id = sg.x.ids[0]; hits.term.set(id, (hits.term.get(id) || 0) + 1); out += `<a class="t" href="#${id}" data-id="${id}">${esc(m)}</a>`; }
+    last = sg.off + sg.len;
+  }
+  return { html: out + esc(text.slice(last)), hits };
+}
+function checkPage() {
+  const sample = `The build pushes the docker image to the remote registry, then the deploy environment is torn down when the pipeline fails. A Stack Operator reruns the job; the Build Cache Key is unchanged, so the step is a no-op.`;
+  return `<div class="check"><h2>Vocabulary check</h2><p class="muted">Paste an issue title, PR description, commit message or doc paragraph. Recognised terms link as usual; Capitalised Phrases without an entry are dotted red. Nothing is stored. The same check runs from the terminal as <code>ubiq check</code>.</p>
+    <textarea class="src">${esc(sample)}</textarea>
+    <div class="legend2"><span><a class="t" href="#" onclick="return false">glossary term</a></span><span><span class="unres cand">candidate term</span></span></div>
+    <div class="out"></div><div class="summary"></div></div>`;
+}
+function wireCheck(body) {
+  const src = body.querySelector('.src'), out = body.querySelector('.out'), sum = body.querySelector('.summary'); if (!src) return;
+  const run = () => {
+    const r = checkText(src.value); out.innerHTML = r.html || '<span class="muted">nothing to check</span>';
+    const termRows = [...r.hits.term.entries()].map(([id, n]) => `${link(id)}${badges(id)} <span class="muted">×${n}</span>`).join('<br>');
+    const cands = [...r.hits.cand.keys()].map(c => `<span class="unres cand">${esc(c)}</span>`).join(', ');
+    sum.innerHTML = `<h4>Terms recognised (${r.hits.term.size})</h4>${termRows || '<div class="muted">none</div>'}
+      <h4>Capitalised phrases without an entry (${r.hits.cand.size})</h4>${cands || '<div class="muted">none</div>'}`;
+  };
+  src.addEventListener('input', run); run();
+}
+// ------------------------------------------------------------------ decisions and context map
+const KIND_TEXT = {
+  mirror: 'Deliberate mirror: both cores define the word with the same shape, each in its own file.',
+  collision: 'True collision: the same entry name means different things in the two cores.',
+  resolved: 'Resolved mirror: a former duplicate now has one home.',
+  anchor: 'Common anchor: a Common cluster both cores lean on.',
+};
+const ctxsOf = e => [...new Set(e.terms.map(x => T[x].context))].sort((a, b) => CTX_ORDER.indexOf(a) - CTX_ORDER.indexOf(b));
+function adrPage(id) {
+  const a = ADR[id]; if (!a) return '<div class="card">Unknown ADR</div>';
+  return `<div class="card adr"><h2>${esc(a.title)}</h2><div class="muted small">${esc(a.path)} · vocabulary mostly ${CTX_NAME[a.context]} (names in the body are linked when they match a glossary entry exactly)</div>
+    <h4>Terms touched (${a.terms.length})</h4><div class="terms">${a.terms.map(x => link(x)).join('') || '<span class="muted">no glossary name appears in this ADR</span>'}</div>
+    <div class="adrbody">${a.html}</div></div>`;
+}
+function mapRow(e, y, lanes) {
+  // filled dot: a term of this exact name is defined there; faint dot: the entry only mentions terms from there
+  const mentioned = ctxsOf(e), defined = (byName[e.name.toLowerCase()] || []).map(x => T[x].context);
+  const span = defined.length ? defined : mentioned, xs = span.map(c => lanes[c]);
+  let s = `<g class="mrow ${e.kind}" data-name="${esc(e.name)}">`;
+  if (span.length > 1) s += `<line class="lk" x1="${Math.min(...xs)}" y1="${y}" x2="${Math.max(...xs)}" y2="${y}"/>`;
+  for (const c of mentioned) if (!defined.includes(c)) s += `<circle class="${c} faint" cx="${lanes[c]}" cy="${y}" r="2.5"/>`;
+  for (const c of defined) s += `<circle class="${c}" cx="${lanes[c]}" cy="${y}" r="5"/>`;
+  return s + `<text x="${lanes.workspace - 16}" y="${y + 4}" text-anchor="end">${esc(e.name)}</text><text x="${lanes.stacks + 16}" y="${y + 4}" class="elabel">${e.kind} · ${e.terms.length} terms</text></g>`;
+}
+function mapPage() {
+  const W = 940, lanes = { workspace: 200, common: 470, stacks: 740 }, rowH = 26;
+  const kinds = ['anchor', 'mirror', 'resolved', 'collision'];
+  const rows = kinds.flatMap(k => DATA.map.filter(e => e.kind === k));
+  const H = 50 + rows.length * rowH + 20;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  for (const k in lanes) svg += `<text class="lane" x="${lanes[k]}" y="22" text-anchor="middle">${CTX_NAME[k]}</text><line class="laneline" x1="${lanes[k]}" y1="32" x2="${lanes[k]}" y2="${H - 10}"/>`;
+  rows.forEach((e, i) => svg += mapRow(e, 50 + i * rowH, lanes));
+  let h = `<div class="card"><h2>Context map · cross-context vocabulary</h2><p class="muted">Three contexts, and the entries in <code>GLOSSARY-MAP.md</code> that relate them. A filled dot marks a context that defines the word; a small faint dot marks one the entry only mentions. Click a row to open its text.</p><div class="mapsvg">${svg}</svg></div>`;
+  for (const k of kinds) {
+    const es = DATA.map.filter(e => e.kind === k); if (!es.length) continue;
+    h += `<h4>${k} (${es.length})</h4><p class="small muted">${KIND_TEXT[k]}</p>` + es.map(e => `<details class="note map" data-name="${esc(e.name)}"><summary>${esc(e.name)} ${ctxsOf(e).map(c => chip(c, CTX_NAME[c])).join('')}</summary>${e.html}</details>`).join('');
+  }
+  h += `<h4>Decisions (${DATA.adrs.length})</h4><p class="small muted">ADRs in <code>docs/adr</code>, with the context whose vocabulary dominates each.</p><ul>${DATA.adrs.map(a => `<li>${adrLink(a)} ${chip(a.context, CTX_NAME[a.context])} <span class="muted small">${a.terms.length} terms</span></li>`).join('')}</ul></div>`;
+  return h;
+}
+function wireMap(body) {
+  body.querySelectorAll('.mrow').forEach(g => g.addEventListener('click', () => {
+    const d = body.querySelector(`details[data-name="${CSS.escape(g.dataset.name)}"]`); if (!d) return;
+    body.querySelectorAll('details.hi').forEach(x => x.classList.remove('hi'));
+    d.open = true; d.classList.add('hi'); d.scrollIntoView({ block: 'center' });
+  }));
+}
+// ------------------------------------------------------------------ glossary health
+const sentences = s => s.split(/(?<![A-Za-z]\.[a-z])[.!?](?=\s|$)/).filter(x => x.trim()).length;
+const RULES = [
+  { key: 'long', name: 'Definition longer than two sentences', why: 'Keep definitions tight. One or two sentences max. Define what it IS, not what it does.',
+    run: () => Object.keys(T).filter(id => sentences(textOf(T[id].definition)) > 2).map(id => ({ id, note: `${sentences(textOf(T[id].definition))} sentences` })) },
+  { key: 'orphan', name: 'Term nothing else mentions', why: 'A term no definition, relationship bullet, ambiguity or map entry refers to is either new vocabulary or a candidate for removal.',
+    run: () => Object.keys(T).filter(id => !inbound[id].length && !notesFor[id].length && !mapFor[id].length).map(id => ({ id, note: T[id].refs.length ? `refers to ${T[id].refs.length}, referenced by none` : 'no references in or out' })) },
+  { key: 'unmapped', name: 'Same entry in two contexts, no map entry', why: 'The map lists how contexts relate. An entry name defined in two cores that the map does not name is an unrecorded mirror or collision.',
+    run: () => Object.keys(T).filter(id => sameWord(id).length && !DATA.map.some(e => e.name.toLowerCase() === T[id].name.toLowerCase())).map(id => ({ id, note: 'also in ' + sameWord(id).map(x => CTX_NAME[T[x].context]).join(', ') })) },
+  { key: 'unresolved', name: 'Bold phrase with no entry', why: 'A phrase written like a term is a claim that a term exists. Either add the entry or drop the bold.',
+    run: () => { const seen = {}; DATA.unresolved.forEach(u => (seen[u.phrase] ||= []).push(`${CTX_NAME[u.context] || u.context}: ${u.where}`)); return Object.entries(seen).map(([p, w]) => ({ phrase: p, note: w.join('; ') })); } },
+];
+let lintCache = null;
+function lint() { if (!lintCache) { lintCache = {}; for (const r of RULES) lintCache[r.key] = r.run(); } return lintCache; }
+function termFindings(id) { const L = lint(); return RULES.filter(r => r.key !== 'unresolved').flatMap(r => L[r.key].filter(x => x.id === id).map(x => ({ r, x }))); }
+function healthPage() {
+  const L = lint();
+  let h = `<div class="health"><h2>Glossary health</h2><p class="muted">Checks derived from the glossary format rules in the domain-modeling skill, over ${Object.keys(T).length} terms. Each term card shows its own findings at the foot.</p>`;
+  for (const r of RULES) {
+    const f = L[r.key], n = new Set(f.map(x => x.id || x.phrase)).size;
+    h += `<div class="rule"><h3><span class="n ${n ? 'hot' : 'zero'}">${n}</span>${esc(r.name)}</h3><div class="why"><q>${esc(r.why)}</q></div>`;
+    if (f.length) h += `<details><summary class="small">show</summary><ul>${f.map(x => `<li>${x.id ? link(x.id) + ctxChip(x.id) : `<span class="unres">${esc(x.phrase)}</span>`} <span class="muted small">${esc(x.note)}</span></li>`).join('')}</ul></details>`;
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+// ------------------------------------------------------------------ router
+const app = document.getElementById('app'), nav = app.querySelector('.nav'), body = app.querySelector('.body'), trailEl = app.querySelector('.trail'), wrap = app.querySelector('.mainwrap');
+navTree(nav); searchBox(app.querySelector('.search')); splitter(app, app.querySelector('.handle'));
+const trail = [];
+const PAGES = { check: () => checkPage(), health: () => healthPage(), map: () => mapPage() };
+function onNav() {
+  const raw = decodeURIComponent(location.hash.slice(1));
+  navSelect(nav, raw);
+  if (T[raw]) {
+    if (trail[trail.length - 1] !== raw) trail.push(raw); if (trail.length > 12) trail.shift();
+    trailEl.innerHTML = 'trail: ' + trail.map(x => `<a href="#${x}">${esc(T[x].name)}</a>`).join(' › ') + ` &nbsp;·&nbsp; <a href="#">all terms</a>`;
+    body.innerHTML = termCard(raw);
+  } else if (PAGES[raw] || ADR[raw]) {
+    trailEl.innerHTML = '<a href="#">all terms</a>';
+    body.innerHTML = PAGES[raw] ? PAGES[raw]() : adrPage(raw);
+    if (raw === 'check') wireCheck(body); else if (raw === 'map') wireMap(body);
+  } else {
+    trailEl.innerHTML = '';
+    body.innerHTML = landingHtml();
+  }
+  wrap.scrollTop = 0;
+}
+addEventListener('hashchange', onNav);
+onNav();
+</script>
+</body>
+</html>
