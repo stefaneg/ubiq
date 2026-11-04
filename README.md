@@ -3,7 +3,8 @@
 Tooling for a domain-driven design ubiquitous language kept as Markdown in the repository.
 
 ubiq reads the `GLOSSARY.md` glossaries, the `GLOSSARY-MAP.md` context map, and the `docs/adr` decision records.
-It renders them as one HTML page, and it checks both the glossary and other text against the vocabulary.
+It renders them as one HTML page, looks up what a word means, and checks both the glossary and other text against
+the vocabulary. It also serves the lookup and the check to coding agents over MCP.
 
 ## Usage
 
@@ -93,9 +94,34 @@ avoided words: video → Clip (Course Video Manager)
 ```
 
 A phrase without an entry is either a term the glossary is missing or a word to replace with an existing term.
-An avoided word that only shortens the term's own name, such as "name" under Image Base Name, is not reported.
-Where a phrase is both a term and part of a longer avoided word, the longer one wins.
-Only phrases of two or more capitalised words count. `check` always exits 0.
+Only phrases of two or more capitalised words count. An avoided word that only shortens the term's own name, such as
+"name" under Image Base Name, is not reported. Where a term is part of a longer avoided word, as Image is part of
+"container image", the longer one wins. `check` always exits 0.
+
+### Serve agents over MCP
+
+```sh
+ubiq mcp
+```
+
+`mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server on stdin and stdout, so that a coding
+agent can ask about the glossary while it works. It has two read-only tools:
+
+- `lookup` takes a list of words and answers as `ubiq lookup` does.
+- `check` takes a text and answers as `ubiq check` does.
+
+Each call reads the glossary again, so an agent that edits `GLOSSARY.md` gets answers from the edited file. A call
+takes milliseconds even for a glossary of a thousand terms. To add the server to Claude Code for a repository, run
+this in the repository:
+
+```sh
+claude mcp add --scope project ubiq -- ubiq mcp
+```
+
+The command writes it to `.mcp.json`. Other agents take the same command, `ubiq mcp`, started in the repository.
+
+For a small glossary, an agent can as well read `GLOSSARY.md` itself. The server pays off once the glossary and ADRs
+are too long to read in every session, or once the repository has several contexts.
 
 ## Examples
 
