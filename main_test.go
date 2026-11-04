@@ -43,6 +43,20 @@ func TestRunCheckReadsFilesAndPassesCleanText(t *testing.T) {
 	assert.Contains(t, out.String(), "terms recognised: Image (Workspace)\n")
 }
 
+func TestRunLookupAnswersEachWordInTurn(t *testing.T) {
+	root := glossarytest.Root(t)
+	var out bytes.Buffer
+	require.NoError(t, run([]string{"lookup", "-root", root, "Workspace", "repo"}, nil, &out, nil))
+	assert.True(t, strings.HasPrefix(out.String(), "Workspace (Workspace), internal/workspace/GLOSSARY.md:13\n"), out.String())
+	assert.Contains(t, out.String(), "\n\n\"repo\" is an Avoided Word. Use instead:\n", "a blank line between words")
+}
+
+func TestRunLookupNeedsAWord(t *testing.T) {
+	err := run([]string{"lookup", "-root", glossarytest.Root(t)}, nil, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "usage:")
+}
+
 func TestRunRejectsAnUnknownCommand(t *testing.T) {
 	err := run([]string{"frobnicate"}, nil, nil, nil)
 	require.Error(t, err)

@@ -52,6 +52,30 @@ It applies four rules:
 
 `health` exits 1 when it finds anything, so you can run it in CI to keep the glossary clean.
 
+### Look up a word
+
+```sh
+ubiq lookup Clip "upload queue" VideoFile
+```
+
+`lookup` answers, for each word, what the glossary says about it. The word may be written as prose or as an
+identifier: `StackImage`, `stack_image`, `stack-image` and `stack images` all find the term Stack Image. When the word
+names a term, `lookup` prints the term with its context, place, and definition, and also what the term refers to, what
+refers to it, the context relationships that mention it, and the ADRs that mention it:
+
+```
+Clip (Course Video Manager), GLOSSARY.md:12
+  A cut of one Recording that belongs to a Lesson.
+  avoid: video, snippet
+  refers to: Recording, Lesson
+  referred to by: Lesson
+  ADR: Cut clips at keyframes (docs/adr/0003-cut-clips-at-keyframes.md)
+```
+
+When a term lists the word under `_Avoid_`, `lookup` says so and prints the term to use instead. When neither holds,
+it lists up to ten terms whose name, `_Avoid_` line or definition has every word, and those whose name has more of
+the words come first. `lookup` always exits 0.
+
 ### Check text against the vocabulary
 
 ```sh

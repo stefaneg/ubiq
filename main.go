@@ -3,11 +3,14 @@
 //
 //	ubiq html [-out glossary.html]
 //	ubiq check [file ...]
+//	ubiq lookup word ...
 //	ubiq health
 //
 // check reads stdin when no file is given. It lists the terms it recognised, the Capitalised Phrases
-// that have no entry, and the Avoided Words it used with the terms to use instead. health prints the glossary health report as one "path:line: rule: name: note" line per
-// finding and exits 1 when there is any. Every command exits 2 on a usage or read error.
+// that have no entry, and the Avoided Words it used with the terms to use instead. lookup tells, for each word,
+// the Terms it names or the Terms to use instead of it, and failing both, the Terms that mention it. health
+// prints the glossary health report as one "path:line: rule: name: note" line per finding and exits 1 when
+// there is any. Every command exits 2 on a usage or read error.
 package main
 
 import (
@@ -21,11 +24,12 @@ import (
 	"github.com/stefaneg/ubiq/internal/check"
 	"github.com/stefaneg/ubiq/internal/glossary"
 	"github.com/stefaneg/ubiq/internal/health"
+	"github.com/stefaneg/ubiq/internal/lookup"
 	"github.com/stefaneg/ubiq/internal/page"
 )
 
 const usage = "usage: ubiq html [-root dir] [-out file] | ubiq check [-root dir] [file ...] | " +
-	"ubiq health [-root dir]"
+	"ubiq lookup [-root dir] word ... | ubiq health [-root dir]"
 
 // errHealthFindings reports that the health command found something; main exits 1 for it.
 var errHealthFindings = errors.New("ubiq health: findings")
@@ -49,6 +53,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return runHTML(args[1:], stderr)
 	case "check":
 		return runCheck(args[1:], stdin, stdout)
+	case "lookup":
+		return runLookup(args[1:], stdout)
 	case "health":
 		return runHealth(args[1:], stdout, stderr)
 	}
@@ -95,6 +101,31 @@ func runCheck(args []string, stdin io.Reader, stdout io.Writer) error {
 		return err
 	}
 	check.New(model).Check(text).Write(stdout)
+	return nil
+}
+
+// runLookup writes the answer for each word, a blank line between them.
+func runLookup(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("lookup", flag.ContinueOnError)
+	fs.SetOutput(stdout)
+	root := fs.String("root", ".", "repository root holding GLOSSARY.md, GLOSSARY-MAP.md and docs/adr")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() == 0 {
+		return errors.New("ubiq lookup: name a word to look up\n" + usage)
+	}
+	model, err := glossary.Load(*root)
+	if err != nil {
+		return err
+	}
+	l := lookup.New(model)
+	for i, word := range fs.Args() {
+		if i > 0 {
+			fmt.Fprintln(stdout)
+		}
+		l.Find(word).Write(stdout)
+	}
 	return nil
 }
 

@@ -1,7 +1,7 @@
 # ubiq
 
-ubiq reads the **Domain Model** a repository keeps as Markdown, renders it as one page, and reports where its language
-is unclear or broken.
+ubiq reads the **Domain Model** a repository keeps as Markdown, renders it as one page, answers what its words mean,
+and reports where its language is unclear or broken.
 
 ## Language
 
@@ -51,6 +51,13 @@ _Avoid_: group, section, category
 A mention of a **Term** by its exact name, in bold or capitalised, in another **Term**'s definition or in a
 **Context Relationship**.
 _Avoid_: link
+
+### Lookups
+
+**Lookup**:
+A search of a **Domain Model** for the **Terms** a word names or avoids, or failing both, the **Terms** that mention
+it.
+_Avoid_: search, query, find
 
 ### Checks
 
