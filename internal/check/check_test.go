@@ -53,6 +53,7 @@ func TestReportWritesTermsThenCandidates(t *testing.T) {
 	report.Write(&out)
 	assert.Equal(t, `terms recognised: Stack Image (Stacks)
 capitalised phrases without an entry: Build Cache Key
+avoided words: repo → Repository (Common), Workspace (Workspace); label → Tag (Common)
 `, out.String())
 }
 
@@ -60,4 +61,24 @@ func TestCandidatePhrasesNeverStartWithADeterminer(t *testing.T) {
 	report := New(glossarytest.Load(t)).Check("The Upload Queue retries. Each Build Cache Key is new. The Stack fails. This Thing")
 	require.Equal(t, []Finding{{Line: 1, Written: "Upload Queue"}, {Line: 1, Written: "Build Cache Key"}}, report.Candidates,
 		"a determiner is dropped, and what is left must still be two words that are not a term")
+}
+
+func TestCheckReportsAvoidedWordsWithTheTermsToUseInstead(t *testing.T) {
+	report := New(glossarytest.Load(t)).Check("pushed to the repo\nthe jobs of a deployment")
+	require.Equal(t, []Finding{
+		{Line: 1, Written: "repo", TermIDs: []string{"common/repository", "workspace/workspace"}},
+		{Line: 2, Written: "job", TermIDs: []string{"common/unit-of-work", "workspace/run"}},
+		{Line: 2, Written: "deployment", TermIDs: []string{"stacks/stack"}},
+	}, report.Avoided)
+	assert.Empty(t, report.Terms)
+}
+
+func TestCheckPrefersTheLongerOfATermAndAnAvoidedWord(t *testing.T) {
+	report := New(glossarytest.Load(t)).Check("an image reference to a Container Image")
+	require.Equal(t, []Finding{
+		{Line: 1, Written: "image reference", TermIDs: []string{"common/image-ref"}},
+		{Line: 1, Written: "Container Image", TermIDs: []string{"workspace/image"}},
+	}, report.Avoided)
+	assert.Empty(t, report.Terms)
+	assert.Empty(t, report.Candidates, "a capitalised Avoided Word is not a Candidate Phrase")
 }

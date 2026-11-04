@@ -5,8 +5,8 @@
 //	ubiq check [file ...]
 //	ubiq health
 //
-// check reads stdin when no file is given. It lists the terms it recognised and the Capitalised Phrases
-// that have no entry. health prints the glossary health report as one "path:line: rule: name: note" line per
+// check reads stdin when no file is given. It lists the terms it recognised, the Capitalised Phrases
+// that have no entry, and the Avoided Words it used with the terms to use instead. health prints the glossary health report as one "path:line: rule: name: note" line per
 // finding and exits 1 when there is any. Every command exits 2 on a usage or read error.
 package main
 

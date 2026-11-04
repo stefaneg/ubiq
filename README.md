@@ -58,15 +58,19 @@ It applies four rules:
 ubiq check docs/notes.md
 ```
 
-`check` reads the named files, or stdin when you name none. It lists the glossary terms it recognised and the
-Capitalised Phrases that have no entry:
+`check` reads the named files, or stdin when you name none. It lists the glossary terms it recognised, the
+Capitalised Phrases that have no entry, and the words a term's `_Avoid_` line rules out, each with the term to use
+instead:
 
 ```
 terms recognised: Clip (Course Video Manager); Lesson (Course Video Manager)
 capitalised phrases without an entry: Upload Queue
+avoided words: video → Clip (Course Video Manager)
 ```
 
 A phrase without an entry is either a term the glossary is missing or a word to replace with an existing term.
+An avoided word that only shortens the term's own name, such as "name" under Image Base Name, is not reported.
+Where a phrase is both a term and part of a longer avoided word, the longer one wins.
 Only phrases of two or more capitalised words count. `check` always exits 0.
 
 ## Examples

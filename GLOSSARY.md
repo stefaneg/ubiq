@@ -55,8 +55,8 @@ _Avoid_: link
 ### Checks
 
 **Vocabulary Check**:
-A comparison of a text with the **Terms** of a **Domain Model**, which lists the **Terms** the text uses and its
-**Candidate Phrases**.
+A comparison of a text with the **Terms** of a **Domain Model**, which lists the **Terms** and **Avoided Words** the
+text uses, and its **Candidate Phrases**.
 _Avoid_: check, lint, spellcheck
 
 **Candidate Phrase**:

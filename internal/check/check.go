@@ -10,10 +10,11 @@ import (
 	"github.com/stefaneg/ubiq/internal/glossary"
 )
 
-// Checker matches free text against glossary term names.
+// Checker matches free text against glossary term names and Avoided Words.
 type Checker struct {
 	model   *glossary.Model
 	entries map[string][]string // lowercase term name -> term IDs
+	avoided map[string][]string // lowercase Avoided Word -> IDs of the terms that avoid it
 	re      *regexp.Regexp
 }
 
@@ -21,13 +22,14 @@ type Checker struct {
 type Finding struct {
 	Line    int
 	Written string   // as it appears in the text
-	TermIDs []string // the terms recognised; empty for a candidate
+	TermIDs []string // the terms recognised, or for an Avoided Word the terms to use instead; empty for a candidate
 }
 
 // Report is the outcome of checking one text.
 type Report struct {
 	Terms      []Finding // glossary terms recognised
 	Candidates []Finding // Capitalised Phrases with no entry
+	Avoided    []Finding // Avoided Words, with the terms that avoid them
 	model      *glossary.Model
 }
 
@@ -37,18 +39,26 @@ var reCandidate = regexp.MustCompile(`(^|[^\w-])([A-Z][a-z]+(?:[- ][A-Z][a-z]+)+
 // "The Upload Queue", which is not part of a Candidate Phrase.
 var reDeterminer = regexp.MustCompile(`^(?:The|A|An|This|That|These|Those|Each|Every|Any|Some|No|All|Both|Either|Neither|Its|Their|Our|Your|My|His|Her)[- ]`)
 
-// New indexes every term name and the head-noun plurals of "<head> of <rest>" names, longest
-// phrase first.
+// New indexes every term name, the head-noun plurals of "<head> of <rest>" names, and every Avoided Word that names
+// a synonym, longest phrase first, so that "image reference" is an Avoided Word rather than the term "image".
 func New(model *glossary.Model) *Checker {
-	c := &Checker{model: model, entries: map[string][]string{}}
+	c := &Checker{model: model, entries: map[string][]string{}, avoided: map[string][]string{}}
 	for _, t := range model.Terms {
 		key := strings.ToLower(strings.TrimSpace(t.Name))
 		c.entries[key] = append(c.entries[key], t.ID)
+		for _, w := range t.Redirects {
+			c.avoided[w] = append(c.avoided[w], t.ID)
+		}
 	}
-	phrases := make([]string, 0, len(c.entries))
+	phrases := make([]string, 0, len(c.entries)+len(c.avoided))
 	for p := range c.entries {
 		phrases = append(phrases, p)
 		phrases = append(phrases, glossary.HeadPlurals(p)...)
+	}
+	for w := range c.avoided {
+		if _, ok := c.entries[w]; !ok {
+			phrases = append(phrases, w)
+		}
 	}
 	sort.Slice(phrases, func(i, j int) bool {
 		if len(phrases[i]) != len(phrases[j]) {
@@ -85,7 +95,11 @@ func (c *Checker) checkLine(n int, line string, r *Report) {
 		}
 		start, end := pos+m[4], pos+m[5]
 		written := line[start:end]
-		r.Terms = append(r.Terms, Finding{Line: n, Written: written, TermIDs: c.lookup(written)})
+		if ids := c.lookup(written); ids != nil {
+			r.Terms = append(r.Terms, Finding{Line: n, Written: written, TermIDs: ids})
+		} else {
+			r.Avoided = append(r.Avoided, Finding{Line: n, Written: written, TermIDs: c.avoided[strings.ToLower(written)]})
+		}
 		if m[7] > m[5] {
 			end = pos + m[7] // plural suffix
 		}
@@ -127,24 +141,45 @@ func overlaps(taken [][2]int, start, end int) bool {
 }
 
 func (r *Report) sortTermIDs() {
-	for _, f := range r.Terms {
-		sort.Strings(f.TermIDs)
+	for _, fs := range [][]Finding{r.Terms, r.Avoided} {
+		for _, f := range fs {
+			sort.Strings(f.TermIDs)
+		}
 	}
 }
 
-// Write renders the report as text: the recognised terms, then the candidates.
+// Write renders the report as text: the recognised terms, the candidates, then each Avoided Word with the terms to
+// use instead, in the order the text first uses them.
 func (r *Report) Write(w io.Writer) {
 	fmt.Fprintf(w, "terms recognised: %s\n", r.distinct(r.Terms))
 	fmt.Fprintf(w, "capitalised phrases without an entry: %s\n", r.distinctWritten(r.Candidates))
+	fmt.Fprintf(w, "avoided words: %s\n", r.avoidedList())
 }
 
-func (r *Report) termList(ids []string) string {
+func (r *Report) avoidedList() string {
+	seen := map[string]bool{}
+	var parts []string
+	for _, f := range r.Avoided {
+		word := strings.ToLower(f.Written)
+		if seen[word] {
+			continue
+		}
+		seen[word] = true
+		parts = append(parts, word+" → "+r.termList(f.TermIDs, ", "))
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, "; ")
+}
+
+func (r *Report) termList(ids []string, sep string) string {
 	parts := make([]string, len(ids))
 	for i, id := range ids {
 		t := r.model.Terms[id]
 		parts[i] = fmt.Sprintf("%s (%s)", t.Name, r.model.ContextName(t.Context))
 	}
-	return strings.Join(parts, "; ")
+	return strings.Join(parts, sep)
 }
 
 func (r *Report) distinct(fs []Finding) string {
@@ -162,7 +197,7 @@ func (r *Report) distinct(fs []Finding) string {
 	if len(ids) == 0 {
 		return "none"
 	}
-	return r.termList(ids)
+	return r.termList(ids, "; ")
 }
 
 func (r *Report) distinctWritten(fs []Finding) string {
