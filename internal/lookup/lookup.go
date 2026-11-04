@@ -36,6 +36,7 @@ type Result struct {
 	lookup   *Lookup
 }
 
+// New indexes the model's Terms by name, by Avoided Word, and by the words of their definitions.
 func New(model *glossary.Model) *Lookup {
 	l := &Lookup{model: model, byName: map[string][]string{}, avoided: map[string][]string{}, inbound: map[string][]string{}}
 	for _, t := range model.Terms {
