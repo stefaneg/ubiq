@@ -149,6 +149,33 @@ ubiq reads the layout that Matt Pocock's
   or by their link text in `## Contexts`. A bold phrase resolves in its own context first, then in the others in map
   order. In a relationship, its own context is the first one the label names.
 
+Within a glossary, terms are read from a `## Language` section, where each `###` heading names a cluster and terms
+before the first one go to General. A `##` heading may instead name a cluster itself, with its terms under a
+`### Language` heading inside it. One glossary may mix both forms:
+
+```md
+## Language
+
+### Orders
+
+**Order**:
+…
+
+## Billing
+
+### Language
+
+**Invoice**:
+…
+
+### Relationships
+
+…
+```
+
+Every other section, such as `## Relationships` or `### Flagged ambiguities`, is skipped, and its bold phrases count
+as neither definitions nor references.
+
 ADRs are read from `docs/adr/*.md` at the root and from `docs/adr/*.md` beside each context's glossary. With one
 context, the root ADRs belong to it. With several, the root ADRs are system-wide.
 
