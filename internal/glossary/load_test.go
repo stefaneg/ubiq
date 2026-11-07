@@ -207,3 +207,69 @@ func TestRelationshipLabelsNameContextsByHeadingOrMapLink(t *testing.T) {
 		{Phrase: "Shipping", Path: "GLOSSARY-MAP.md", Where: "relationship Shipping → Billing"},
 	}, model.Unresolved, "a label name that matches no context is unresolved")
 }
+
+func TestLoadReadsClustersWhoseHeadingsHoldALanguageSection(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Common
+
+Shared vocabulary.
+
+## Language
+
+**Order**:
+A request for goods.
+
+## Image References
+
+How images are named.
+
+### Language
+
+**Image Ref**:
+A reference to an image by **Tag**.
+
+**Tag**:
+A mutable label.
+
+### Relationships
+
+- An **Image Ref** names a **Ghost**.
+
+**Phantom**:
+Not a term: it sits outside a Language section.
+
+### Flagged ambiguities
+
+- **Tag** also means a git **Spectre**.
+
+## Scheduling
+
+### Language
+
+**Run**:
+One invocation of an **Order**.
+
+## Notes
+
+**Skipped**:
+Not a term either.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	require.Len(t, model.Contexts, 1)
+	var clusters [][]string
+	for _, c := range model.Contexts[0].Clusters {
+		clusters = append(clusters, append([]string{c.Name}, c.TermIDs...))
+	}
+	assert.Equal(t, [][]string{
+		{"General", "common/order"},
+		{"Image References", "common/image-ref", "common/tag"},
+		{"Scheduling", "common/run"},
+	}, clusters, "the ## Language form and the ## Cluster form mix in one Glossary")
+	assert.Len(t, model.Terms, 4, "bold definitions outside a Language section are not Terms")
+	assert.Equal(t, 16, model.Terms["common/image-ref"].Line)
+	assert.Equal(t, []string{"common/tag"}, model.Terms["common/image-ref"].Refs)
+	assert.Equal(t, []string{"common/order"}, model.Terms["common/run"].Refs)
+	assert.Equal(t, "<p>How images are named.</p>", model.Contexts[0].Clusters[1].Intro)
+	assert.Empty(t, model.Unresolved, "bold phrases in skipped sections are neither definitions nor References")
+}

@@ -2,9 +2,7 @@ package health
 
 import (
 	"fmt"
-	"html"
 	"io"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -52,7 +50,7 @@ func Check(model *glossary.Model) []Finding {
 		out = append(out, Finding{Path: paths[t.Context], Line: t.Line, Rule: rule, Name: t.Name, Note: note, Term: t.ID})
 	}
 	for id, t := range model.Terms {
-		if n := sentences(plainText(t.Definition)); n > 2 {
+		if n := sentences(glossary.PlainText(t.Definition)); n > 2 {
 			add(t, "long", fmt.Sprintf("%d sentences", n))
 		}
 		if inbound[id] == 0 {
@@ -109,12 +107,6 @@ func related(model *glossary.Model, a, b string, ids []string) bool {
 		}
 	}
 	return false
-}
-
-var reTag = regexp.MustCompile(`<[^>]*>`)
-
-func plainText(h string) string {
-	return html.UnescapeString(reTag.ReplaceAllString(h, ""))
 }
 
 // sentences counts sentence ends: ".", "!" or "?" followed by whitespace or the end of the text, except inside an

@@ -1,6 +1,11 @@
 // Package glossary builds the glossary Model from a repository's GLOSSARY.md files, GLOSSARY-MAP.md and ADRs.
 package glossary
 
+import (
+	"html"
+	"regexp"
+)
+
 // Context is one glossary file.
 type Context struct {
 	Key      string    `json:"key"`  // slug of Name; prefixes the context's term ids
@@ -63,4 +68,11 @@ func (m *Model) ContextName(key string) string {
 		}
 	}
 	return key
+}
+
+var reTag = regexp.MustCompile(`<[^>]*>`)
+
+// PlainText is the text of rendered html, such as a Term's Definition, without its tags.
+func PlainText(h string) string {
+	return html.UnescapeString(reTag.ReplaceAllString(h, ""))
 }

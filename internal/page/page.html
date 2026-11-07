@@ -25,6 +25,7 @@ a.t{color:var(--accent);text-decoration:none;border-bottom:1px dotted #5a7399;fo
 a.t:hover{background:var(--accent-bg)}
 .unres{color:var(--rose);border-bottom:1px dashed var(--rose);font-weight:500;cursor:help}
 .unres.cand{border-bottom-style:dotted}
+.unres.avoided{color:var(--amber);border-bottom-color:var(--amber)}
 .avoid{color:var(--muted);font-size:.85em}
 .avoid b{font-weight:600;color:var(--muted)}
 .chip{display:inline-block;font-size:.7em;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:.1em .5em;border-radius:999px;vertical-align:middle;margin-left:.4em}
@@ -176,6 +177,7 @@ function badges(id, withCtx = true) {
 const pop = document.getElementById('pop');
 function popUnresolved(u) {
   const phrase = u.textContent, av = redirectIndex[phrase.toLowerCase()] || [];
+  if (u.classList.contains('avoided')) return `<div class="n">${esc(phrase)}</div><div class="hint">An Avoided Word: listed under <b>Avoid</b> by ${av.map(x => T[x].name + ' (' + CTX_NAME[T[x].context] + ')').join(', ')}. The glossary says to use that term instead.</div>`;
   return `<div class="n">${esc(phrase)}</div><div class="flag unres">No glossary entry. This phrase is marked like a term (${u.classList.contains('cand') ? 'a Capitalised Phrase in the checked text' : 'bold in the file'}), but no GLOSSARY.md defines it.</div>`
     + (av.length ? `<div class="hint">Listed under <b>Avoid</b> by ${av.map(x => T[x].name + ' (' + CTX_NAME[T[x].context] + ')').join(', ')}: the glossary says to use that term instead.</div>` : `<div class="hint">Either add an entry, or drop the bold so it reads as plain text.</div>`);
 }
@@ -313,10 +315,16 @@ function splitter(root, handle) {
 function checkText(text) {
   const phrases = [];
   for (const id in T) phrases.push({ p: T[id].name.toLowerCase(), ids: [id] });
-  phrases.sort((a, b) => b.p.length - a.p.length);
-  const byPhrase = {}; phrases.forEach(x => byPhrase[x.p] ||= x);
-  const re = new RegExp('(?<![\\w-])(' + phrases.map(x => escRe(x.p)).join('|') + ')(s|es)?(?![\\w-])', 'gi');
-  const hits = { term: new Map(), cand: new Map() };
+  for (const w in redirectIndex) if (!byName[w]) phrases.push({ p: w, ids: redirectIndex[w], avoided: true });
+  // A phrase ending in a consonant and y also matches its -ies plural, which the (s|es) suffix cannot reach.
+  const byPhrase = {};
+  for (const x of phrases) {
+    byPhrase[x.p] ||= x;
+    if (/[^aeiouy]y$/.test(x.p)) byPhrase[x.p.slice(0, -1) + 'ies'] ||= x;
+  }
+  const alts = Object.keys(byPhrase).sort((a, b) => b.length - a.length);
+  const re = new RegExp('(?<![\\w-])(' + alts.map(escRe).join('|') + ')(s|es)?(?![\\w-])', 'gi');
+  const hits = { term: new Map(), cand: new Map(), avoided: new Map() };
   const segs = [];
   text.replace(re, (m, p, pl, off) => { segs.push({ off, len: m.length, x: byPhrase[p.toLowerCase()] }); return m; });
   const candRe = /\b([A-Z][a-z]+(?:[- ][A-Z][a-z]+)+)\b/g, detRe = /^(?:The|A|An|This|That|These|Those|Each|Every|Any|Some|No|All|Both|Either|Neither|Its|Their|Our|Your|My|His|Her)[- ]/;
@@ -331,6 +339,7 @@ function checkText(text) {
     out += esc(text.slice(last, sg.off));
     const m = text.slice(sg.off, sg.off + sg.len);
     if (sg.cand) { hits.cand.set(m, (hits.cand.get(m) || 0) + 1); out += `<span class="unres cand">${esc(m)}</span>`; }
+    else if (sg.x.avoided) { const w = sg.x.p; hits.avoided.set(w, sg.x.ids); out += `<span class="unres avoided">${esc(m)}</span>`; }
     else { const id = sg.x.ids[0]; hits.term.set(id, (hits.term.get(id) || 0) + 1); out += `<a class="t" href="#${id}" data-id="${id}">${esc(m)}</a>`; }
     last = sg.off + sg.len;
   }
@@ -338,9 +347,9 @@ function checkText(text) {
 }
 function checkPage() {
   const sample = `A name two contexts both define is an Unmapped Name only when no Context Relationship between those two contexts mentions it. A name in a relationship's bold label that matches no context is now an Unresolved Phrase, reported against GLOSSARY-MAP.md. The Health Report lists both.`;
-  return `<div class="check"><h2>Vocabulary check</h2><p class="muted">Paste an issue title, PR description, commit message or doc paragraph. Recognised terms link as usual; Capitalised Phrases without an entry are dotted red. Nothing is stored. The same check runs from the terminal as <code>ubiq check</code>.</p>
+  return `<div class="check"><h2>Vocabulary check</h2><p class="muted">Paste an issue title, PR description, commit message or doc paragraph. Recognised terms link as usual; Capitalised Phrases without an entry are dotted red, and Avoided Words amber. Nothing is stored. The same check runs from the terminal as <code>ubiq check</code>.</p>
     <textarea class="src">${esc(sample)}</textarea>
-    <div class="legend2"><span><a class="t" href="#" onclick="return false">glossary term</a></span><span><span class="unres cand">candidate term</span></span></div>
+    <div class="legend2"><span><a class="t" href="#" onclick="return false">glossary term</a></span><span><span class="unres cand">candidate term</span></span><span><span class="unres avoided">avoided word</span></span></div>
     <div class="out"></div><div class="summary"></div></div>`;
 }
 function wireCheck(body) {
@@ -349,8 +358,10 @@ function wireCheck(body) {
     const r = checkText(src.value); out.innerHTML = r.html || '<span class="muted">nothing to check</span>';
     const termRows = [...r.hits.term.entries()].map(([id, n]) => `${link(id)}${badges(id)} <span class="muted">×${n}</span>`).join('<br>');
     const cands = [...r.hits.cand.keys()].map(c => `<span class="unres cand">${esc(c)}</span>`).join(', ');
+    const avoided = [...r.hits.avoided.entries()].map(([w, ids]) => `<span class="unres avoided">${esc(w)}</span> → ${ids.map(x => link(x)).join(', ')}`).join('<br>');
     sum.innerHTML = `<h4>Terms recognised (${r.hits.term.size})</h4>${termRows || '<div class="muted">none</div>'}
-      <h4>Capitalised phrases without an entry (${r.hits.cand.size})</h4>${cands || '<div class="muted">none</div>'}`;
+      <h4>Capitalised phrases without an entry (${r.hits.cand.size})</h4>${cands || '<div class="muted">none</div>'}
+      <h4>Avoided words (${r.hits.avoided.size})</h4>${avoided || '<div class="muted">none</div>'}`;
   };
   src.addEventListener('input', run); run();
 }

@@ -53,9 +53,10 @@ func readLines(path string) ([]string, error) {
 }
 
 // parseContext reads one glossary file laid out as the domain-modeling skill's GLOSSARY-FORMAT.md describes: a "#"
-// heading naming the context, an intro, and a "## Language" section whose "###" subheadings name clusters. Other
-// "##" sections are not part of the format and are skipped. displayPath is the path shown to readers; path is where
-// it is read from. The caller sets the key.
+// heading naming the context, an intro, and terms grouped into clusters. A cluster is either a "###" subheading of a
+// "## Language" section, or a "##" heading whose section holds a "### Language" heading; one file may mix both.
+// Every other section, such as Relationships or Flagged ambiguities, is not part of the format and is skipped.
+// displayPath is the path shown to readers; path is where it is read from. The caller sets the key.
 func parseContext(displayPath, path string) (*rawContext, error) {
 	lines, err := readLines(path)
 	if err != nil {
@@ -72,17 +73,28 @@ func parseContext(displayPath, path string) (*rawContext, error) {
 		return c
 	}
 	inIntro, inLanguage := true, false
-	var cur *rawCluster // nil until a term or line appears; terms before any subheading go to "General"
+	var cur *rawCluster     // nil until a term or line appears; terms before any subheading go to "General"
+	var section *rawCluster // the Cluster a "##" heading names when its section holds a "### Language" heading
+	inSectionIntro := false // in such a section, before its first "###" heading
 	for i := 0; i < len(lines); {
 		ln := lines[i]
 		if m := reH.FindStringSubmatch(ln); m != nil {
+			name := strings.TrimSpace(m[2])
 			switch len(m[1]) {
 			case 1:
 				rc.name = m[2]
 			case 2:
-				inIntro, inLanguage, cur = false, strings.EqualFold(strings.TrimSpace(m[2]), "Language"), nil
+				inIntro, cur, section, inSectionIntro = false, nil, nil, false
+				inLanguage = isLanguage(name)
+				if !inLanguage && holdsLanguage(lines[i+1:]) {
+					section, inSectionIntro = getCluster(name), true
+				}
 			case 3:
-				if inLanguage {
+				switch {
+				case section != nil:
+					inSectionIntro, inLanguage = false, isLanguage(name)
+					cur = section
+				case inLanguage:
 					cur = getCluster(m[2])
 				}
 			}
@@ -92,6 +104,13 @@ func parseContext(displayPath, path string) (*rawContext, error) {
 		if inIntro {
 			if strings.TrimSpace(ln) != "" && !strings.HasPrefix(ln, ">") {
 				rc.intro = append(rc.intro, ln)
+			}
+			i++
+			continue
+		}
+		if inSectionIntro {
+			if strings.TrimSpace(ln) != "" {
+				section.intro = append(section.intro, ln)
 			}
 			i++
 			continue
@@ -126,6 +145,25 @@ func parseContext(displayPath, path string) (*rawContext, error) {
 		cur.terms = append(cur.terms, t)
 	}
 	return rc, nil
+}
+
+func isLanguage(heading string) bool { return strings.EqualFold(heading, "Language") }
+
+// holdsLanguage reports whether the "##" section that lines start in has a "### Language" heading.
+func holdsLanguage(lines []string) bool {
+	for _, ln := range lines {
+		m := reH.FindStringSubmatch(ln)
+		if m == nil {
+			continue
+		}
+		if len(m[1]) <= 2 {
+			return false
+		}
+		if len(m[1]) == 3 && isLanguage(strings.TrimSpace(m[2])) {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- context map ----------------------------------------------------------
