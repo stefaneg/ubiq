@@ -54,10 +54,12 @@ func New(model *glossary.Model) *Checker {
 	for p := range c.entries {
 		phrases = append(phrases, p)
 		phrases = append(phrases, glossary.HeadPlurals(p)...)
+		phrases = append(phrases, iesPlural(p)...)
 	}
 	for w := range c.avoided {
 		if _, ok := c.entries[w]; !ok {
 			phrases = append(phrases, w)
+			phrases = append(phrases, iesPlural(w)...)
 		}
 	}
 	sort.Slice(phrases, func(i, j int) bool {
@@ -95,10 +97,10 @@ func (c *Checker) checkLine(n int, line string, r *Report) {
 		}
 		start, end := pos+m[4], pos+m[5]
 		written := line[start:end]
-		if ids := c.lookup(written); ids != nil {
+		if ids := find(c.entries, written); ids != nil {
 			r.Terms = append(r.Terms, Finding{Line: n, Written: written, TermIDs: ids})
 		} else {
-			r.Avoided = append(r.Avoided, Finding{Line: n, Written: written, TermIDs: c.avoided[strings.ToLower(written)]})
+			r.Avoided = append(r.Avoided, Finding{Line: n, Written: written, TermIDs: find(c.avoided, written)})
 		}
 		if m[7] > m[5] {
 			end = pos + m[7] // plural suffix
@@ -118,17 +120,23 @@ func (c *Checker) checkLine(n int, line string, r *Report) {
 	}
 }
 
-func (c *Checker) lookup(written string) []string {
-	key := strings.ToLower(written)
-	if ids, ok := c.entries[key]; ok {
-		return ids
-	}
-	for _, s := range glossary.Singulars(key) {
-		if ids, ok := c.entries[s]; ok {
+// find is the entry of index for written, or for one of its singulars.
+func find(index map[string][]string, written string) []string {
+	for _, s := range glossary.Singulars(strings.ToLower(written)) {
+		if ids, ok := index[s]; ok {
 			return ids
 		}
 	}
 	return nil
+}
+
+// iesPlural is the plural of a phrase ending in a consonant and y, such as "deliveries" for "delivery", which the
+// trailing (s|es) match cannot reach. Other phrases yield nothing.
+func iesPlural(p string) []string {
+	if len(p) < 2 || p[len(p)-1] != 'y' || strings.ContainsRune("aeiouy", rune(p[len(p)-2])) {
+		return nil
+	}
+	return []string{p[:len(p)-1] + "ies"}
 }
 
 func overlaps(taken [][2]int, start, end int) bool {

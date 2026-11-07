@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stefaneg/ubiq/internal/glossary"
 	"github.com/stefaneg/ubiq/internal/glossarytest"
 )
 
@@ -81,4 +82,31 @@ func TestCheckPrefersTheLongerOfATermAndAnAvoidedWord(t *testing.T) {
 	}, report.Avoided)
 	assert.Empty(t, report.Terms)
 	assert.Empty(t, report.Candidates, "a capitalised Avoided Word is not a Candidate Phrase")
+}
+
+func TestCheckMatchesPluralsEndingInIes(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Shop
+
+## Language
+
+**Delivery**:
+A shipment of an **Order**.
+_Avoid_: dispatch
+
+**Order**:
+A customer's purchase.
+_Avoid_: entry, journey
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	report := New(model).Check("two deliveries, three entries and an entry, journeys")
+	require.Equal(t, []Finding{
+		{Line: 1, Written: "deliveries", TermIDs: []string{"shop/delivery"}},
+	}, report.Terms)
+	require.Equal(t, []Finding{
+		{Line: 1, Written: "entries", TermIDs: []string{"shop/order"}},
+		{Line: 1, Written: "entry", TermIDs: []string{"shop/order"}},
+		{Line: 1, Written: "journey", TermIDs: []string{"shop/order"}},
+	}, report.Avoided, "a vowel before the y takes a plain s")
 }

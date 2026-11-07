@@ -316,9 +316,14 @@ function checkText(text) {
   const phrases = [];
   for (const id in T) phrases.push({ p: T[id].name.toLowerCase(), ids: [id] });
   for (const w in redirectIndex) if (!byName[w]) phrases.push({ p: w, ids: redirectIndex[w], avoided: true });
-  phrases.sort((a, b) => b.p.length - a.p.length);
-  const byPhrase = {}; phrases.forEach(x => byPhrase[x.p] ||= x);
-  const re = new RegExp('(?<![\\w-])(' + phrases.map(x => escRe(x.p)).join('|') + ')(s|es)?(?![\\w-])', 'gi');
+  // A phrase ending in a consonant and y also matches its -ies plural, which the (s|es) suffix cannot reach.
+  const byPhrase = {};
+  for (const x of phrases) {
+    byPhrase[x.p] ||= x;
+    if (/[^aeiouy]y$/.test(x.p)) byPhrase[x.p.slice(0, -1) + 'ies'] ||= x;
+  }
+  const alts = Object.keys(byPhrase).sort((a, b) => b.length - a.length);
+  const re = new RegExp('(?<![\\w-])(' + alts.map(escRe).join('|') + ')(s|es)?(?![\\w-])', 'gi');
   const hits = { term: new Map(), cand: new Map(), avoided: new Map() };
   const segs = [];
   text.replace(re, (m, p, pl, off) => { segs.push({ off, len: m.length, x: byPhrase[p.toLowerCase()] }); return m; });
