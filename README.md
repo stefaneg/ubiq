@@ -154,8 +154,14 @@ context, the root ADRs belong to it. With several, the root ADRs are system-wide
 
 ## Install
 
+From GitHub:
 ```sh
 go install github.com/stefaneg/ubiq@latest
+```
+
+Local clone:
+```sh
+go install .
 ```
 
 ## License
