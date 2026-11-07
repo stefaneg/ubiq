@@ -13,7 +13,7 @@ import (
 const maxMentions = 10
 
 // Write renders the result as text: a block for each Term the word names, then a block for each Term that avoids it,
-// or failing both, a line for each Term that mentions it.
+// or failing both, a line for each of its parts, or failing those too, a line for each Term that mentions it.
 func (r *Result) Write(w io.Writer) {
 	l := r.lookup
 	for _, id := range r.Named {
@@ -26,6 +26,13 @@ func (r *Result) Write(w io.Writer) {
 		}
 	}
 	if len(r.Named) > 0 || len(r.Avoided) > 0 {
+		return
+	}
+	if len(r.Parts) > 0 {
+		fmt.Fprintf(w, "%q names no Term, and no Term avoids it. Its parts:\n", r.Word)
+		for _, p := range r.Parts {
+			fmt.Fprintf(w, "  %s: %s\n", p.Words, l.partAnswer(p))
+		}
 		return
 	}
 	if len(r.Mentions) == 0 {
@@ -66,6 +73,36 @@ func (l *Lookup) writeTerm(w io.Writer, t *glossary.Term) {
 			field("ADR", fmt.Sprintf("%s (%s)", a.Title, a.Path))
 		}
 	}
+}
+
+// partAnswer is the one-line answer for a part: the Terms it names and the Terms to use instead, each by name,
+// Context and place.
+func (l *Lookup) partAnswer(p Part) string {
+	var answer []string
+	if len(p.Named) > 0 {
+		answer = append(answer, l.places(p.Named))
+	}
+	if len(p.Avoided) > 0 {
+		lead := "an Avoided Word"
+		if len(p.Named) > 0 {
+			lead = "Also an Avoided Word"
+		}
+		answer = append(answer, lead+". Use instead: "+l.places(p.Avoided))
+	}
+	if len(answer) == 0 {
+		return "names no Term, and no Term avoids it"
+	}
+	return strings.Join(answer, ". ")
+}
+
+// places lists the Terms as "Name (Context), path:line".
+func (l *Lookup) places(ids []string) string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		t := l.model.Terms[id]
+		out[i] = fmt.Sprintf("%s (%s), %s:%d", t.Name, l.model.ContextName(t.Context), l.contextPath(t.Context), t.Line)
+	}
+	return strings.Join(out, "; ")
 }
 
 // names lists the Terms by name, adding the Context of each one outside ctx.

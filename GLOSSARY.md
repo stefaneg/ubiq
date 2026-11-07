@@ -55,8 +55,8 @@ _Avoid_: link
 ### Lookups
 
 **Lookup**:
-A search of a **Domain Model** for the **Terms** a word names or avoids, or failing both, the **Terms** that mention
-it.
+A search of a **Domain Model** for the **Terms** a word names or avoids, else for those the parts of a compound word
+name or avoid, else for the **Terms** that mention it.
 _Avoid_: search, query, find
 
 ### Checks

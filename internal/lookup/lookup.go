@@ -30,10 +30,22 @@ type Result struct {
 	Word    string
 	Named   []string // IDs of the Terms the word names
 	Avoided []string // IDs of the Terms that avoid the word, to use instead
+	// Parts splits a compound word, such as StackImageResolver, that names no Term and no Term avoids, into the Terms
+	// and Avoided Words inside it. It is empty unless at least one part matches.
+	Parts []Part
 	// Mentions is the IDs of the Terms whose name, Avoid line or definition has every word of the word, when it
-	// names no Term and no Term avoids it. Terms whose name has more of the words come first.
+	// names no Term, no Term avoids it, and none of its parts match. Terms whose name has more of the words come
+	// first.
 	Mentions []string
 	lookup   *Lookup
+}
+
+// Part is a run of words inside a compound word: the longest run, scanning from the left, that names a Term or is an
+// Avoided Word, or a single word that is neither.
+type Part struct {
+	Words   string   // the words as written, lowercased and space-separated
+	Named   []string // IDs of the Terms the part names
+	Avoided []string // IDs of the Terms that avoid the part, to use instead
 }
 
 // New indexes the model's Terms by name, by Avoided Word, and by the words of their definitions.
@@ -73,10 +85,40 @@ func (l *Lookup) Find(word string) *Result {
 	forms := glossary.Singulars(normalise(word))
 	r.Named = first(l.byName, forms)
 	r.Avoided = first(l.avoided, forms)
-	if r.Named == nil && r.Avoided == nil {
-		r.Mentions = l.mentions(splitWords(word))
+	if r.Named != nil || r.Avoided != nil {
+		return r
+	}
+	words := splitWords(word)
+	r.Parts = l.parts(words)
+	if r.Parts == nil {
+		r.Mentions = l.mentions(words)
 	}
 	return r
+}
+
+// parts splits words into the longest runs, scanning from the left, that name a Term or are an Avoided Word, and
+// single words that are neither. It is nil when no run matches.
+func (l *Lookup) parts(words []string) []Part {
+	var parts []Part
+	matched := false
+	for i := 0; i < len(words); {
+		p := Part{Words: words[i]}
+		end := i + 1
+		for j := len(words); j > i; j-- {
+			phrase := strings.Join(words[i:j], " ")
+			forms := glossary.Singulars(phrase)
+			if named, avoided := first(l.byName, forms), first(l.avoided, forms); named != nil || avoided != nil {
+				p, end, matched = Part{Words: phrase, Named: named, Avoided: avoided}, j, true
+				break
+			}
+		}
+		parts = append(parts, p)
+		i = end
+	}
+	if !matched {
+		return nil
+	}
+	return parts
 }
 
 func (l *Lookup) mentions(words []string) []string {

@@ -73,9 +73,21 @@ Clip (Course Video Manager), GLOSSARY.md:12
   ADR: Cut clips at keyframes (docs/adr/0003-cut-clips-at-keyframes.md)
 ```
 
-When a term lists the word under `_Avoid_`, `lookup` says so and prints the term to use instead. When neither holds,
-it lists up to ten terms whose name, `_Avoid_` line or definition has every word, and those whose name has more of
-the words come first. `lookup` always exits 0.
+When a term lists the word under `_Avoid_`, `lookup` says so and prints the term to use instead.
+
+When neither holds for the whole word, `lookup` splits it into parts, so that a new name such as
+`StackImageRefResolver` shows the terms it is built from. Scanning from the left, each part is the longest run of
+words that names a term or that a term avoids; a word that is neither is a part on its own. Each part gets one line:
+
+```
+"StackImageRefResolver" names no Term, and no Term avoids it. Its parts:
+  stack image ref: Stack Image Ref (Stacks), internal/stacks/GLOSSARY.md:34
+  resolver: names no Term, and no Term avoids it
+```
+
+Look up a part to get its full entry. When no part matches either, `lookup` lists up to ten terms whose name,
+`_Avoid_` line or definition has every word, and those whose name has more of the words come first. `lookup` always
+exits 0.
 
 ### Check text against the vocabulary
 
