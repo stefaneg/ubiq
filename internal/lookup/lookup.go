@@ -3,6 +3,7 @@
 package lookup
 
 import (
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -17,6 +18,9 @@ type Lookup struct {
 	avoided map[string][]string // normalised Avoided Word -> IDs of the terms that avoid it
 	words   []termWords
 	inbound map[string][]string // term ID -> IDs of the terms whose definitions refer to it
+	// statements is, for each term ID, the Statements that mention it, in model order.
+	statements map[string][]glossary.Statement
+	coMentions map[string][]string // term ID -> IDs of the other terms its Statements mention
 }
 
 // termWords holds the word forms of one Term: of its name, and of its name, Avoid line and definition together.
@@ -67,8 +71,21 @@ func New(model *glossary.Model) *Lookup {
 			l.inbound[ref] = append(l.inbound[ref], t.ID)
 		}
 	}
-	for _, ids := range l.inbound {
-		l.byTermName(ids)
+	l.statements, l.coMentions = map[string][]glossary.Statement{}, map[string][]string{}
+	for _, s := range model.Statements {
+		for _, id := range s.TermIDs {
+			l.statements[id] = append(l.statements[id], s)
+			for _, other := range s.TermIDs {
+				if other != id && !slices.Contains(l.coMentions[id], other) {
+					l.coMentions[id] = append(l.coMentions[id], other)
+				}
+			}
+		}
+	}
+	for _, index := range []map[string][]string{l.inbound, l.coMentions} {
+		for _, ids := range index {
+			l.byTermName(ids)
+		}
 	}
 	sort.Slice(l.words, func(i, j int) bool { return l.termBefore(l.words[i].term, l.words[j].term) })
 	for _, index := range []map[string][]string{l.byName, l.avoided} {

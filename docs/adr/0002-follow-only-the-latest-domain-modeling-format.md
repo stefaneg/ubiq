@@ -1,3 +1,7 @@
+---
+status: superseded in part by ADR-0004, which reads every section
+---
+
 # Follow only the latest domain-modeling format
 
 ubiq reads only what the latest

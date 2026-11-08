@@ -49,8 +49,7 @@ func TestPluralBoldPhrasesResolveToTheSingularTerm(t *testing.T) {
 func TestUnresolvedBoldPhrasesAreMarkedAndListed(t *testing.T) {
 	model := glossarytest.Load(t)
 	assert.Contains(t, model.Terms["common/repository"].Definition, `<span class="unres">Label</span>`)
-	require.Len(t, model.Unresolved, 1)
-	assert.Equal(t, glossary.Unresolved{Phrase: "Label", Path: "GLOSSARY.md", Context: "common", Where: "Repository"}, model.Unresolved[0])
+	assert.Contains(t, model.Unresolved, glossary.Unresolved{Phrase: "Label", Path: "GLOSSARY.md", Context: "common", Where: "Repository"})
 }
 
 func TestHeadNounPluralsResolveToTheirTerm(t *testing.T) {
@@ -60,11 +59,10 @@ func TestHeadNounPluralsResolveToTheirTerm(t *testing.T) {
 	assert.Equal(t, []string{"common/unit-of-work"}, run.Refs)
 }
 
-func TestSectionsOutsideLanguageAreNotRead(t *testing.T) {
+func TestBoldInEverySectionOfAGlossaryIsResolved(t *testing.T) {
 	model := glossarytest.Load(t)
-	for _, u := range model.Unresolved {
-		assert.NotContains(t, []string{"Ghost", "Phantom", "Spectre"}, u.Phrase)
-	}
+	assert.Contains(t, model.Unresolved, glossary.Unresolved{Phrase: "Ghost", Path: "GLOSSARY.md", Context: "common", Where: "Relationships"})
+	assert.Contains(t, model.Unresolved, glossary.Unresolved{Phrase: "Phantom", Path: "GLOSSARY.md", Context: "common", Where: "Flagged ambiguities"})
 	var clusters []string
 	for _, cl := range model.Contexts[2].Clusters {
 		clusters = append(clusters, cl.Name)
@@ -104,7 +102,9 @@ func TestADRsLinkGlossaryNamesAndKeepBoldSentencesPlain(t *testing.T) {
 	assert.Contains(t, adr.HTML, `<b>Every Stack Image is pinned.</b>`)
 	assert.Contains(t, adr.HTML, `data-id="common/tag">Tags</a>`)
 	assert.NotContains(t, adr.HTML, "unres")
-	assert.Len(t, model.Unresolved, 1, "ADR bold is emphasis, never reported")
+	for _, u := range model.Unresolved {
+		assert.NotEqual(t, "docs/adr/0001-pin-tags.md", u.Path, "ADR bold is emphasis, never reported")
+	}
 }
 
 func TestLoadReportsAMissingGlossary(t *testing.T) {

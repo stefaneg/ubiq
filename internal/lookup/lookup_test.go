@@ -94,9 +94,44 @@ func TestResultWritesEverythingTheModelSaysAboutANamedTerm(t *testing.T) {
   avoid: stack container
   refers to: Stack, Image (Workspace)
   referred to by: Stack
-  relationship: Workspace → Stacks: a Stack Image names a workspace Image.
-  relationship: Stacks ↔ Common: a Stack Image is pinned by an Image Ref.
+  co-mentioned with: Image (Workspace), Image Ref (Common)
+  statement: Relationships: Workspace → Stacks: a Stack Image names a workspace Image. (GLOSSARY-MAP.md:15)
+  statement: Relationships: Stacks ↔ Common: a Stack Image is pinned by an Image Ref. (GLOSSARY-MAP.md:16)
 `, out.String())
+}
+
+func TestResultListsAtMostFiveStatements(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Shop
+
+## Language
+
+**Order**:
+A request for goods.
+
+## Notes
+
+- One **Order**.
+- Two **Order**.
+- Three **Order**.
+- Four **Order**.
+- Five **Order**.
+- Six **Order**.
+- Seven **Order**.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	var out strings.Builder
+	New(model).Find("order").Write(&out)
+	assert.Equal(t, `Order (Shop), GLOSSARY.md:5
+  A request for goods.
+  statement: Notes: One Order. (GLOSSARY.md:10)
+  statement: Notes: Two Order. (GLOSSARY.md:11)
+  statement: Notes: Three Order. (GLOSSARY.md:12)
+  statement: Notes: Four Order. (GLOSSARY.md:13)
+  statement: Notes: Five Order. (GLOSSARY.md:14)
+  and 2 more statements
+`, out.String(), "a Statement that mentions only the Term co-mentions nothing")
 }
 
 func TestResultNamesTheADRsThatMentionATerm(t *testing.T) {

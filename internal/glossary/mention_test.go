@@ -73,9 +73,15 @@ func TestCapitalisedMentionsAreReferences(t *testing.T) {
 	assert.Contains(t, model.Terms["wallet/wallet"].Definition, "<code>Wallet</code>")
 }
 
-func TestCapitalisedMentionsInContextRelationshipsAreReferences(t *testing.T) {
+func TestCapitalisedMentionsInStatementsCount(t *testing.T) {
 	model, err := glossary.Load(walletRoot(t))
 	require.NoError(t, err)
-	require.Len(t, model.Relationships, 1)
-	assert.Equal(t, []string{"wallet/wallet", "wallet/mint"}, model.Relationships[0].TermIDs)
+	var rels []glossary.Statement
+	for _, s := range model.Statements {
+		if s.IsContextRelationship() {
+			rels = append(rels, s)
+		}
+	}
+	require.Len(t, rels, 1)
+	assert.Equal(t, []string{"wallet/wallet", "wallet/mint"}, rels[0].TermIDs)
 }

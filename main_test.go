@@ -27,7 +27,7 @@ func TestRunHTMLWritesASelfContainedPage(t *testing.T) {
 	assert.Contains(t, string(page), `"common/tag"`)
 	assert.NotContains(t, string(page), "__DATA__")
 	assert.NotContains(t, string(page), "</script>\"", "closing tags inside the JSON are escaped")
-	assert.Equal(t, "wrote "+out+": 10 terms, 1 ADRs, 1 unresolved phrases\n", status.String())
+	assert.Equal(t, "wrote "+out+": 10 terms, 1 ADRs, 4 unresolved phrases\n", status.String())
 }
 
 func TestRunCheckReadsStdin(t *testing.T) {
@@ -89,9 +89,12 @@ func TestRunHealthPrintsFindingsAndExitsOne(t *testing.T) {
 	var out, status bytes.Buffer
 	err := run([]string{"health", "-root", root}, nil, &out, &status)
 	require.True(t, errors.Is(err, errHealthFindings))
-	assert.Equal(t, "GLOSSARY.md: unresolved: Label: Common: Repository\n"+
+	assert.Equal(t, "GLOSSARY-MAP.md: unresolved: Spectre: Workspace: Cross-context vocabulary › Deliberate mirrors › Run\n"+
+		"GLOSSARY.md: unresolved: Ghost: Common: Relationships\n"+
+		"GLOSSARY.md: unresolved: Label: Common: Repository\n"+
+		"GLOSSARY.md: unresolved: Phantom: Common: Flagged ambiguities\n"+
 		"GLOSSARY.md:15: long: Tag: 3 sentences\n"+
 		"GLOSSARY.md:25: unmapped: Run: also in Workspace\n"+
 		"internal/workspace/GLOSSARY.md:17: unmapped: Run: also in Common\n", out.String())
-	assert.Equal(t, "4 findings over 10 terms: 1 long, 0 orphan, 2 unmapped, 1 unresolved\n", status.String())
+	assert.Equal(t, "7 findings over 10 terms: 1 long, 0 orphan, 2 unmapped, 4 unresolved\n", status.String())
 }

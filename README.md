@@ -44,11 +44,12 @@ GLOSSARY.md: unresolved: Beat Warning: Course Video Manager: Beat
 It applies four rules:
 
 - `long`: the definition is longer than two sentences.
-- `orphan`: no other term's definition and no context relationship refers to the term. A reference is the term's
-  name in bold, or written as defined when the name starts with a capital letter. ADRs do not count.
-- `unmapped`: two contexts define the same name, and no context relationship between them mentions it.
-- `unresolved`: a bold phrase matches no term, or a relationship label names no context. The note names the context
-  and the term or relationship where the phrase appears.
+- `orphan`: no other term's definition and no statement (see [Layout](#layout)) refers to the term. A reference is
+  the term's name in bold, or written as defined when the name starts with a capital letter. ADRs do not count.
+- `unmapped`: two contexts define the same name, and no heading has statements under it that mention the name and
+  name both contexts.
+- `unresolved`: a bold phrase matches no term or context, or a name in a bold label such as `Ordering → Billing`
+  matches no context. The note names the context and the term or headings where the phrase appears.
   An unresolved finding has no line number.
 
 `health` exits 1 when it finds anything, so you can run it in CI to keep the glossary clean.
@@ -61,8 +62,12 @@ ubiq lookup Clip "upload queue" VideoFile
 
 `lookup` answers, for each word, what the glossary says about it. The word may be written as prose or as an
 identifier: `StackImage`, `stack_image`, `stack-image` and `stack images` all find the term Stack Image. When the word
-names a term, `lookup` prints the term with its context, place, and definition, and also what the term refers to, what
-refers to it, the context relationships that mention it, and the ADRs that mention it:
+names a term, `lookup` prints the term with its context, place, and definition. It also prints:
+
+- what the term refers to, and what refers to it
+- the terms that statements mention alongside it
+- up to five of those statements
+- the ADRs that mention it
 
 ```
 Clip (Course Video Manager), GLOSSARY.md:12
@@ -70,6 +75,8 @@ Clip (Course Video Manager), GLOSSARY.md:12
   avoid: video, snippet
   refers to: Recording, Lesson
   referred to by: Lesson
+  co-mentioned with: Recording, Timeline
+  statement: Relationships: A Clip sits on one Timeline and plays part of a Recording. (GLOSSARY.md:40)
   ADR: Cut clips at keyframes (docs/adr/0003-cut-clips-at-keyframes.md)
 ```
 
@@ -156,24 +163,23 @@ ubiq reads the layout that Matt Pocock's
   - [Billing](./src/billing/GLOSSARY.md): generates invoices and processes payments
   ```
 
-  The map's `## Relationships` section relates contexts, one bullet per relationship, such as
-  `- **Ordering → Billing**: each **Order** becomes an **Invoice**`. The bold label names contexts by their heading
-  or by their link text in `## Contexts`. A bold phrase resolves in its own context first, then in the others in map
-  order. In a relationship, its own context is the first one the label names.
+ubiq reads every section of every glossary and of the map. Only two things in them are structure: term definitions
+and bold phrases.
 
-Within a glossary, terms are read from a `## Language` section, where each `###` heading names a cluster and terms
-before the first one go to General. A `##` heading may instead name a cluster itself, with its terms under a
-`### Language` heading inside it. One glossary may mix both forms:
+A **term** is a bold name followed by a colon on a line of its own, then its definition and an optional `_Avoid_`
+line. It may sit under any heading. Its cluster is the nearest heading above it, skipping one named Language, or
+General when there is none. The text between that heading and the cluster's first term is the cluster's intro.
 
 ```md
 ## Language
 
-### Orders
+### Orders              ← cluster Orders
 
 **Order**:
-…
+A request for goods by a **Customer**.
+_Avoid_: purchase
 
-## Billing
+## Billing              ← cluster Billing
 
 ### Language
 
@@ -182,11 +188,37 @@ before the first one go to General. A `##` heading may instead name a cluster it
 
 ### Relationships
 
-…
+- An **Order** becomes one **Invoice**.
 ```
 
-Every other section, such as `## Relationships` or `### Flagged ambiguities`, is skipped, and its bold phrases count
-as neither definitions nor references.
+Every other block is a **statement**: a paragraph, a bullet with its indented continuation lines, a table row, or a
+quote. Fenced code is skipped. Each statement is labelled by the headings above it, such as
+`Billing › Relationships`. It mentions the terms named in it, in bold or capitalised as defined, plus those its
+nearest heading names. Terms one statement mentions are **co-mentioned**, and `lookup` and the page show them next to
+each term.
+
+A statement names a context when it writes the context's heading or its link text from `## Contexts`, in bold or
+capitalised as written. A bold label such as `**Ordering → Billing**` names each context it joins, and a name in it
+that matches no context is unresolved. A statement that names two or more contexts is a **context relationship**:
+
+```md
+## Relationships
+
+- **Ordering → Billing**: each **Order** becomes an **Invoice**.
+
+## Cross-context vocabulary
+
+#### Customer
+
+- Ordering: the person who places an **Order**.
+- Billing: the party an **Invoice** is sent to.
+```
+
+A bold phrase resolves in the statement's own context first, then in the others in map order. A statement in the map
+has the first context it names as its own.
+
+`unmapped` reads the statements under one heading together. In the example above, the two bullets under
+`#### Customer` together mention Customer and name both Ordering and Billing, so Customer is not unmapped.
 
 ADRs are read from `docs/adr/*.md` at the root and from `docs/adr/*.md` beside each context's glossary. With one
 context, the root ADRs belong to it. With several, the root ADRs are system-wide.

@@ -12,6 +12,10 @@ import (
 // maxMentions caps the Terms listed for a word that names none, so that a common word stays a short answer.
 const maxMentions = 10
 
+// maxStatements caps the Statements written for a Term, so that a Term the Domain Model mentions everywhere stays a
+// short answer.
+const maxStatements = 5
+
 // Write renders the result as text: a block for each Term the word names, then a block for each Term that avoids it,
 // or failing both, a line for each of its parts, or failing those too, a line for each Term that mentions it.
 func (r *Result) Write(w io.Writer) {
@@ -63,10 +67,13 @@ func (l *Lookup) writeTerm(w io.Writer, t *glossary.Term) {
 	field("avoid", t.Avoid)
 	field("refers to", l.names(t.Refs, t.Context))
 	field("referred to by", l.names(l.inbound[t.ID], t.Context))
-	for _, rel := range m.Relationships {
-		if slices.Contains(rel.TermIDs, t.ID) {
-			field("relationship", rel.Label+": "+glossary.PlainText(rel.HTML))
-		}
+	field("co-mentioned with", l.names(l.coMentions[t.ID], t.Context))
+	statements := l.statements[t.ID]
+	for _, s := range statements[:min(len(statements), maxStatements)] {
+		field("statement", fmt.Sprintf("%s: %s (%s:%d)", s.Label, glossary.PlainText(s.HTML), s.Path, s.Line))
+	}
+	if n := len(statements) - maxStatements; n > 0 {
+		fmt.Fprintf(w, "  and %d more statements\n", n)
 	}
 	for _, a := range m.ADRs {
 		if slices.Contains(a.TermIDs, t.ID) {

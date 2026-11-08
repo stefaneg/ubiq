@@ -28,10 +28,25 @@ type rawContext struct {
 	intro           []string
 	clusters        map[string]*rawCluster
 	clusterOrder    []string
+	statements      []rawStatement
+	headings        []rawHeading
+}
+
+// rawStatement is one block of a document outside its Term entries, with the headings above it.
+type rawStatement struct {
+	label   string // the headings above it below the title, as "A › B"; the title above them all
+	heading string // the nearest heading; empty under the title
+	line    int
+	text    string
+}
+
+// rawHeading is one heading below a document's title, with its label.
+type rawHeading struct {
+	label, text string
 }
 
 var (
-	reH        = regexp.MustCompile(`^(#{1,4}) (.*)$`)
+	reH        = regexp.MustCompile(`^(#{1,6}) (.*)$`)
 	reTermLine = regexp.MustCompile(`^\*\*([^*]+)\*\*:\s*$`)
 	reAvoid    = regexp.MustCompile(`^_Avoid_:\s*(.*)$`)
 	reBullet   = regexp.MustCompile(`^(\s*)[-*] (.*)$`)
@@ -52,11 +67,17 @@ func readLines(path string) ([]string, error) {
 	return out, sc.Err()
 }
 
-// parseContext reads one glossary file laid out as the domain-modeling skill's GLOSSARY-FORMAT.md describes: a "#"
-// heading naming the context, an intro, and terms grouped into clusters. A cluster is either a "###" subheading of a
-// "## Language" section, or a "##" heading whose section holds a "### Language" heading; one file may mix both.
-// Every other section, such as Relationships or Flagged ambiguities, is not part of the format and is skipped.
-// displayPath is the path shown to readers; path is where it is read from. The caller sets the key.
+// heading is one "##" to "######" heading of a document.
+type heading struct {
+	level int
+	text  string
+	line  int
+}
+
+// parseContext reads one glossary file: a "#" heading naming the context, an intro before the first "##" heading,
+// and Term entries under any heading. A Term's Cluster is the nearest heading above it, skipping one named Language,
+// or General without one; the text between that heading and the Cluster's first Term is the Cluster's intro. Fenced
+// code is skipped. displayPath is the path shown to readers; path is where it is read from. The caller sets the key.
 func parseContext(displayPath, path string) (*rawContext, error) {
 	lines, err := readLines(path)
 	if err != nil {
@@ -72,98 +93,204 @@ func parseContext(displayPath, path string) (*rawContext, error) {
 		rc.clusterOrder = append(rc.clusterOrder, name)
 		return c
 	}
-	inIntro, inLanguage := true, false
-	var cur *rawCluster     // nil until a term or line appears; terms before any subheading go to "General"
-	var section *rawCluster // the Cluster a "##" heading names when its section holds a "### Language" heading
-	inSectionIntro := false // in such a section, before its first "###" heading
+	var stack []heading
+	var pending []string // the lines since the nearest heading, which become a Cluster's intro if a Term follows
+	inFence := false
 	for i := 0; i < len(lines); {
 		ln := lines[i]
+		if isFence(ln) || inFence {
+			inFence = inFence != isFence(ln)
+			i++
+			continue
+		}
 		if m := reH.FindStringSubmatch(ln); m != nil {
-			name := strings.TrimSpace(m[2])
-			switch len(m[1]) {
-			case 1:
-				rc.name = m[2]
-			case 2:
-				inIntro, cur, section, inSectionIntro = false, nil, nil, false
-				inLanguage = isLanguage(name)
-				if !inLanguage && holdsLanguage(lines[i+1:]) {
-					section, inSectionIntro = getCluster(name), true
-				}
-			case 3:
-				switch {
-				case section != nil:
-					inSectionIntro, inLanguage = false, isLanguage(name)
-					cur = section
-				case inLanguage:
-					cur = getCluster(m[2])
+			level, name := len(m[1]), strings.TrimSpace(m[2])
+			switch {
+			case level == 1 && rc.name == "":
+				rc.name = name
+			case level > 1:
+				stack = push(stack, heading{level: level, text: name, line: i + 1})
+				if level == 2 || !isLanguage(name) {
+					pending = nil
 				}
 			}
 			i++
 			continue
 		}
-		if inIntro {
-			if strings.TrimSpace(ln) != "" && !strings.HasPrefix(ln, ">") {
+		if m := reTermLine.FindStringSubmatch(ln); m != nil {
+			var t rawTerm
+			t, i = readTerm(lines, i, m[1])
+			c := getCluster(clusterName(stack))
+			if len(c.terms) == 0 && len(c.intro) == 0 {
+				c.intro = pending
+			}
+			pending = nil
+			c.terms = append(c.terms, t)
+			continue
+		}
+		if strings.TrimSpace(ln) != "" {
+			switch {
+			case len(stack) > 0:
+				pending = append(pending, ln)
+			case !strings.HasPrefix(ln, ">"):
 				rc.intro = append(rc.intro, ln)
 			}
-			i++
-			continue
 		}
-		if inSectionIntro {
-			if strings.TrimSpace(ln) != "" {
-				section.intro = append(section.intro, ln)
-			}
-			i++
-			continue
-		}
-		if !inLanguage || strings.TrimSpace(ln) == "" {
-			i++
-			continue
-		}
-		if cur == nil {
-			cur = getCluster("General")
-		}
-		m := reTermLine.FindStringSubmatch(ln)
-		if m == nil {
-			if len(cur.terms) == 0 {
-				cur.intro = append(cur.intro, ln)
-			}
-			i++
-			continue
-		}
-		t := rawTerm{name: strings.TrimSpace(m[1]), line: i + 1}
 		i++
-		var def []string
-		for i < len(lines) && strings.TrimSpace(lines[i]) != "" && !reH.MatchString(lines[i]) && !reTermLine.MatchString(lines[i]) {
-			if a := reAvoid.FindStringSubmatch(lines[i]); a != nil {
-				t.avoid = a[1]
-			} else {
-				def = append(def, strings.TrimSpace(lines[i]))
+	}
+	rc.statements, rc.headings = parseStatements(lines)
+	return rc, nil
+}
+
+var (
+	reNumbered = regexp.MustCompile(`^(\s*)\d+\. (.*)$`)
+	reTableSep = regexp.MustCompile(`^[\s|:-]+$`)
+)
+
+// parseStatements reads every block of a document outside its Term entries and fenced code: a paragraph, a bullet or
+// numbered item with its indented continuation lines, a table row other than a separator, or a blockquote. It also
+// returns each heading below the title, with its label.
+func parseStatements(lines []string) ([]rawStatement, []rawHeading) {
+	var out []rawStatement
+	var headings []rawHeading
+	var stack []heading
+	title := ""
+	label := func() string {
+		if len(stack) == 0 {
+			return title
+		}
+		names := make([]string, len(stack))
+		for i, h := range stack {
+			names[i] = h.text
+		}
+		return strings.Join(names, " › ")
+	}
+	add := func(line int, text string) {
+		s := rawStatement{label: label(), line: line, text: text}
+		if len(stack) > 0 {
+			s.heading = stack[len(stack)-1].text
+		}
+		out = append(out, s)
+	}
+	var para []string
+	paraLine, quote, inFence := 0, false, false
+	flush := func() {
+		if len(para) > 0 {
+			add(paraLine, strings.Join(para, " "))
+		}
+		para, quote = nil, false
+	}
+	extend := func(i int, text string, isQuote bool) {
+		if quote != isQuote {
+			flush()
+		}
+		if len(para) == 0 {
+			paraLine = i + 1
+		}
+		para, quote = append(para, text), isQuote
+	}
+	for i := 0; i < len(lines); {
+		ln := lines[i]
+		trimmed := strings.TrimSpace(ln)
+		indent, item, isItem := listItem(ln)
+		switch {
+		case isFence(ln) || inFence:
+			flush()
+			inFence = inFence != isFence(ln)
+			i++
+		case reH.MatchString(ln):
+			flush()
+			m := reH.FindStringSubmatch(ln)
+			if name := strings.TrimSpace(m[2]); len(m[1]) > 1 {
+				stack = push(stack, heading{level: len(m[1]), text: name, line: i + 1})
+				headings = append(headings, rawHeading{label: label(), text: name})
+			} else if title == "" {
+				title = name
 			}
 			i++
+		case reTermLine.MatchString(ln):
+			flush()
+			_, i = readTerm(lines, i, "")
+		case trimmed == "":
+			flush()
+			i++
+		case strings.HasPrefix(trimmed, "|"):
+			flush()
+			if !reTableSep.MatchString(trimmed) {
+				add(i+1, strings.TrimSpace(strings.Trim(trimmed, "|")))
+			}
+			i++
+		case isItem:
+			flush()
+			start := i
+			for i++; i < len(lines) && strings.HasPrefix(lines[i], indent+"  ") && !strings.HasPrefix(strings.TrimSpace(lines[i]), "|"); i++ {
+				item += " " + strings.TrimSpace(lines[i])
+			}
+			add(start+1, item)
+		case strings.HasPrefix(trimmed, ">"):
+			extend(i, strings.TrimSpace(strings.TrimPrefix(trimmed, ">")), true)
+			i++
+		default:
+			extend(i, trimmed, false)
+			i++
 		}
-		t.def = strings.Join(def, " ")
-		cur.terms = append(cur.terms, t)
 	}
-	return rc, nil
+	flush()
+	return out, headings
+}
+
+// listItem splits a bullet or numbered item into its indent and text.
+func listItem(line string) (indent, text string, ok bool) {
+	if m := reBullet.FindStringSubmatch(line); m != nil {
+		return m[1], m[2], true
+	}
+	if m := reNumbered.FindStringSubmatch(line); m != nil {
+		return m[1], m[2], true
+	}
+	return "", "", false
+}
+
+// readTerm reads the Term entry whose "**Name**:" line is lines[i], up to the next blank line, heading or entry, and
+// returns it with the index of the line after it.
+func readTerm(lines []string, i int, name string) (rawTerm, int) {
+	t := rawTerm{name: strings.TrimSpace(name), line: i + 1}
+	i++
+	var def []string
+	for i < len(lines) && strings.TrimSpace(lines[i]) != "" && !reH.MatchString(lines[i]) && !reTermLine.MatchString(lines[i]) {
+		if a := reAvoid.FindStringSubmatch(lines[i]); a != nil {
+			t.avoid = a[1]
+		} else {
+			def = append(def, strings.TrimSpace(lines[i]))
+		}
+		i++
+	}
+	t.def = strings.Join(def, " ")
+	return t, i
+}
+
+// push adds h to the stack of open headings, closing those of its level or deeper.
+func push(stack []heading, h heading) []heading {
+	for len(stack) > 0 && stack[len(stack)-1].level >= h.level {
+		stack = stack[:len(stack)-1]
+	}
+	return append(stack, h)
+}
+
+// clusterName is the nearest open heading not named Language, or General.
+func clusterName(stack []heading) string {
+	for i := len(stack) - 1; i >= 0; i-- {
+		if !isLanguage(stack[i].text) {
+			return stack[i].text
+		}
+	}
+	return "General"
 }
 
 func isLanguage(heading string) bool { return strings.EqualFold(heading, "Language") }
 
-// holdsLanguage reports whether the "##" section that lines start in has a "### Language" heading.
-func holdsLanguage(lines []string) bool {
-	for _, ln := range lines {
-		m := reH.FindStringSubmatch(ln)
-		if m == nil {
-			continue
-		}
-		if len(m[1]) <= 2 {
-			return false
-		}
-		if len(m[1]) == 3 && isLanguage(strings.TrimSpace(m[2])) {
-			return true
-		}
-	}
-	return false
+func isFence(line string) bool {
+	t := strings.TrimSpace(line)
+	return strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~")
 }
 
 // ---- context map ----------------------------------------------------------
@@ -192,53 +319,6 @@ func parseMapContexts(lines []string) []contextLink {
 				seen[rel] = true
 				out = append(out, contextLink{name: m[1], rel: rel})
 			}
-		}
-	}
-	return out
-}
-
-type rawRelationship struct {
-	label, text string
-}
-
-var reRelationship = regexp.MustCompile(`^\*\*([^*]+)\*\*:\s*(.*)$`)
-
-// parseMapRelationships reads the unindented bullets under "## Relationships", joining their indented continuation
-// lines. A bullet without a bold label keeps its whole text as the statement.
-func parseMapRelationships(lines []string) []rawRelationship {
-	var out []rawRelationship
-	in := false
-	for i := 0; i < len(lines); i++ {
-		if m := reH.FindStringSubmatch(lines[i]); m != nil && len(m[1]) <= 2 {
-			in = len(m[1]) == 2 && strings.EqualFold(strings.TrimSpace(m[2]), "Relationships")
-			continue
-		}
-		m := reBullet.FindStringSubmatch(lines[i])
-		if !in || m == nil || m[1] != "" {
-			continue
-		}
-		text := m[2]
-		for i+1 < len(lines) && strings.HasPrefix(lines[i+1], "  ") && strings.TrimSpace(lines[i+1]) != "" {
-			i++
-			text += " " + strings.TrimSpace(lines[i])
-		}
-		if l := reRelationship.FindStringSubmatch(text); l != nil {
-			out = append(out, rawRelationship{label: strings.TrimSpace(l[1]), text: l[2]})
-		} else {
-			out = append(out, rawRelationship{text: text})
-		}
-	}
-	return out
-}
-
-var reLabelSep = regexp.MustCompile(`\s*(?:<->|->|<-|[→↔←⇄,&]|\band\b)\s*`)
-
-// labelNames splits a relationship label such as "Ordering → Billing" into the names it joins.
-func labelNames(label string) []string {
-	var out []string
-	for _, n := range reLabelSep.Split(label, -1) {
-		if n = strings.TrimSpace(n); n != "" {
-			out = append(out, n)
 		}
 	}
 	return out

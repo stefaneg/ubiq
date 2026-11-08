@@ -122,6 +122,7 @@ body.dragging .handle{background:#5a7399}
 .node.centre text{fill:#f3f3f0;font-weight:600;font-size:12px}
 .node text{font-size:11px;fill:#d6d9de;pointer-events:none}
 .edge{stroke:#6b7480;stroke-width:1.2;fill:none}
+.edge.co{stroke-dasharray:4 3;opacity:.7}
 .elabel{font-size:10px;fill:var(--muted)}
 </style>
 </head>
@@ -135,7 +136,8 @@ const T = DATA.terms;
 for (const id in T) { T[id].refs = (T[id].refs || []).filter(x => x !== id); T[id].redirects ||= []; }
 DATA.contexts.forEach(c => (c.clusters ||= []).forEach(cl => cl.terms ||= []));
 DATA.adrs ||= []; DATA.adrs.forEach(a => a.terms ||= []);
-DATA.relationships ||= []; DATA.relationships.forEach(r => { r.terms ||= []; r.contexts ||= []; });
+DATA.statements ||= []; DATA.statements.forEach(s => { s.terms ||= []; s.contexts ||= []; });
+const RELATIONSHIPS = DATA.statements.filter(s => s.contexts.length >= 2);
 DATA.unresolved ||= [];
 DATA.health ||= [];
 const CTX_NAME = Object.fromEntries(DATA.contexts.map(c => [c.key, c.name]));
@@ -151,10 +153,10 @@ const ctxCls = k => 'ctx-' + k;
 }
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const inbound = {}, adrsFor = {}, relsFor = {}, byName = {}, ADR = {};
-for (const id in T) { inbound[id] = []; adrsFor[id] = []; relsFor[id] = []; (byName[T[id].name.toLowerCase()] ||= []).push(id); }
+const inbound = {}, adrsFor = {}, stmtsFor = {}, coFor = {}, byName = {}, ADR = {};
+for (const id in T) { inbound[id] = []; adrsFor[id] = []; stmtsFor[id] = []; coFor[id] = new Set(); (byName[T[id].name.toLowerCase()] ||= []).push(id); }
 for (const id in T) for (const r of T[id].refs) inbound[r].push(id);
-DATA.relationships.forEach(r => { for (const id of r.terms) relsFor[id].push(r); });
+DATA.statements.forEach(s => { for (const id of s.terms) { stmtsFor[id].push(s); for (const o of s.terms) if (o !== id) coFor[id].add(o); } });
 DATA.adrs.forEach(a => { ADR[a.id] = a; for (const id of a.terms) adrsFor[id].push(a); });
 // redirectIndex: avoided word -> terms that list it as a synonym (short forms of the term's own name excluded by the generator)
 const redirectIndex = {};
@@ -206,12 +208,14 @@ function place(e) {
 }
 // ------------------------------------------------------------------ neighbourhood diagram
 const nodeCls = id => `node ${ctxCls(T[id].context)}`;
-// Referenced-by left, refers-to right.
+// Referenced-by left, refers-to right, and co-mentioned in a grid below, joined by dashed, undirected edges.
 function neighbourhood(id, W = 940) {
   const outs = T[id].refs, ins = inbound[id].filter(x => !outs.includes(x));
-  const rowH = 26, colX = 170;
-  const H = Math.max(160, Math.max(outs.length, ins.length) * rowH + 60);
-  const cx = W / 2, cy = H / 2;
+  const cos = [...coFor[id]].filter(x => !outs.includes(x) && !ins.includes(x)).sort((a, b) => T[a].name.localeCompare(T[b].name));
+  const rowH = 26, gridH = 40, colX = 170, perRow = 5, colW = W / perRow;
+  const top = Math.max(160, Math.max(outs.length, ins.length) * rowH + 60);
+  const gridY = top + 24, H = cos.length ? gridY + Math.ceil(cos.length / perRow) * gridH + 4 : top;
+  const cx = W / 2, cy = top / 2;
   let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
   const col = (ids, x, anchor) => ids.map((x2, i) => ({ id: x2, x, y: cy - (ids.length - 1) * rowH / 2 + i * rowH, anchor }));
   const L = col(ins, colX, 'end'), R = col(outs, W - colX, 'start');
@@ -221,12 +225,18 @@ function neighbourhood(id, W = 940) {
   s += `<text class="elabel" x="${colX}" y="${cy - (Math.max(ins.length, 1) - 1) * rowH / 2 - 22}" text-anchor="end">referenced by (${ins.length})</text><text class="elabel" x="${W - colX}" y="${cy - (Math.max(outs.length, 1) - 1) * rowH / 2 - 22}">refers to (${outs.length})</text>`;
   const side = d => `<g class="${nodeCls(d.id)}" data-id="${d.id}" transform="translate(${d.x},${d.y})"><circle r="6"></circle><text x="${d.anchor === 'end' ? -12 : 12}" y="4" text-anchor="${d.anchor}">${esc(T[d.id].name)}</text></g>`;
   s += L.map(side).join('') + R.map(side).join('');
+  if (cos.length) {
+    const G = cos.map((x, i) => ({ id: x, x: colW * (i % perRow) + colW / 2, y: gridY + Math.floor(i / perRow) * gridH + 12 }));
+    for (const d of G) s += `<path class="edge co" d="M${cx},${cy + 10} C${cx},${(cy + d.y) / 2} ${d.x},${(cy + d.y) / 2} ${d.x},${d.y - 7}"/>`;
+    s += `<text class="elabel" x="${cx}" y="${gridY - 6}" text-anchor="middle">co-mentioned (${cos.length})</text>`;
+    s += G.map(d => `<g class="${nodeCls(d.id)}" data-id="${d.id}" transform="translate(${d.x},${d.y})"><circle r="6"></circle><text x="0" y="18" text-anchor="middle">${esc(T[d.id].name)}</text></g>`).join('');
+  }
   s += `<g class="node centre" data-id="${id}" transform="translate(${cx},${cy})"><circle r="10"></circle><text x="0" y="-16" text-anchor="middle">${esc(T[id].name)}</text></g></svg>`;
   return s;
 }
 // ------------------------------------------------------------------ term card
 const adrLink = a => `<a href="#${a.id}">${esc(a.title)}</a>`;
-const relNote = r => `<div class="note">${r.label ? `<b>${esc(r.label)}</b>` : ''}${r.contexts.map(k => chip(ctxCls(k), CTX_NAME[k])).join('')}<div>${r.html}</div></div>`;
+const stmtNote = s => `<div class="note"><span class="muted small">${esc(s.label)} · ${esc(s.path)}:${s.line}</span>${s.contexts.map(k => chip(ctxCls(k), CTX_NAME[k])).join('')}<div>${s.html}</div></div>`;
 const adrChip = a => a.context ? chip(ctxCls(a.context), CTX_NAME[a.context]) : chip('also', 'system-wide');
 function sameWordBlock(id) {
   const sw = sameWord(id); if (!sw.length) return '';
@@ -245,7 +255,7 @@ function termCard(id) {
     <div class="def">${t.definition}</div>${avoidLine(t)}
     ${sameWordBlock(id)}
     <div class="graph">${neighbourhood(id)}</div>
-    <div class="sections">${relsFor[id].length ? `<h4>Context relationships (${relsFor[id].length})</h4>${relsFor[id].map(relNote).join('')}` : ''}${decisionsBlock(id)}${healthBlock(id)}</div></div>`;
+    <div class="sections">${stmtsFor[id].length ? `<h4>Statements (${stmtsFor[id].length})</h4>${stmtsFor[id].map(stmtNote).join('')}` : ''}${decisionsBlock(id)}${healthBlock(id)}</div></div>`;
 }
 // Landing: every term as a chip, grouped by context and cluster.
 function landingHtml() {
@@ -375,16 +385,16 @@ function adrPage(id) {
 function mapPage() {
   let h = `<div class="card"><h2>Context map</h2><p class="muted">${DATA.contexts.length} ${DATA.contexts.length === 1 ? 'context' : 'contexts'}${DATA.contexts.length > 1 ? ', as <code>GLOSSARY-MAP.md</code> lists them' : ''}.</p>`;
   h += DATA.contexts.map(c => `<div class="note"><b>${esc(c.name)}</b> ${chip(ctxCls(c.key), c.key)} <span class="muted small">${esc(c.path)} · ${c.clusters.reduce((n, cl) => n + cl.terms.length, 0)} terms</span>${c.intro}</div>`).join('');
-  if (DATA.relationships.length) h += `<h4>Relationships (${DATA.relationships.length})</h4>` + DATA.relationships.map(relNote).join('');
+  if (RELATIONSHIPS.length) h += `<h4>Context relationships (${RELATIONSHIPS.length})</h4><p class="small muted">Statements that name two or more contexts.</p>` + RELATIONSHIPS.map(stmtNote).join('');
   h += `<h4>Decisions (${DATA.adrs.length})</h4><p class="small muted">ADRs in <code>docs/adr</code> and in each context's own <code>docs/adr</code>, with the context each belongs to.</p><ul>${DATA.adrs.map(a => `<li>${adrLink(a)} ${adrChip(a)} <span class="muted small">${a.terms.length} terms</span></li>`).join('')}</ul></div>`;
   return h;
 }
 // ------------------------------------------------------------------ glossary health (findings from `ubiq health`)
 const RULES = [
   { key: 'long', name: 'Definition longer than two sentences', why: 'Keep definitions tight. One or two sentences max. Define what it IS, not what it does.' },
-  { key: 'orphan', name: 'Term nothing else mentions', why: 'A term no other definition or context relationship refers to is either new vocabulary or a candidate for removal.' },
-  { key: 'unmapped', name: 'Same name in two contexts, no relationship mentions it', why: 'A name two contexts both define is either a deliberate difference or a word one of them should drop. A context relationship between the two that mentions the name records which.' },
-  { key: 'unresolved', name: 'Bold phrase or relationship label with no match', why: 'A phrase written like a term is a claim that a term exists, and a relationship label names contexts. Either add the term or context, or drop the bold.' },
+  { key: 'orphan', name: 'Term nothing else mentions', why: 'A term no other definition and no statement mentions is either new vocabulary or a candidate for removal.' },
+  { key: 'unmapped', name: 'Same name in two contexts, no heading relates them', why: 'A name two contexts both define is either a deliberate difference or a word one of them should drop. Statements under one heading that mention the name and name both contexts record which.' },
+  { key: 'unresolved', name: 'Bold phrase or context label with no match', why: 'A phrase written like a term is a claim that a term exists, and a label such as Ordering → Billing names contexts. Either add the term or context, or drop the bold.' },
 ];
 const findingsOf = rule => DATA.health.filter(f => f.rule === rule);
 const termFindings = id => DATA.health.filter(f => f.term === id).map(x => ({ r: RULES.find(r => r.key === x.rule), x }));

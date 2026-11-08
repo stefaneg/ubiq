@@ -21,12 +21,11 @@ grouped into **Clusters**.
 _Avoid_: dictionary, vocabulary file
 
 **Context Map**:
-The document that lists a repository's **Contexts**, where each one's **Glossary** lives, and each
-**Context Relationship**.
+The document that lists a repository's **Contexts** and where each one's **Glossary** lives.
 _Avoid_: glossary map, index
 
 **Context Relationship**:
-A statement in the **Context Map** of how two **Contexts** relate.
+A **Statement** that names two or more **Contexts**.
 _Avoid_: integration, dependency
 
 **ADR**:
@@ -47,10 +46,19 @@ _Avoid_: synonym, alias, redirect
 A named group of **Terms** under one subheading of a **Glossary**.
 _Avoid_: group, section, category
 
+**Statement**:
+A paragraph, bullet, table row or quote of a **Glossary** or the **Context Map** that defines no **Term**, labelled by
+the headings above it.
+_Avoid_: passage
+
 **Reference**:
 A mention of a **Term** by its exact name, in bold or capitalised, in another **Term**'s definition or in a
-**Context Relationship**.
+**Statement**.
 _Avoid_: link
+
+**Co-mention**:
+Two **Terms** that one **Statement** mentions, or that it and the heading just above it mention.
+_Avoid_: association, related term
 
 ### Lookups
 
@@ -92,10 +100,18 @@ A **Term** that has no **Reference**.
 _Avoid_: unused term, dead term
 
 **Unmapped Name**:
-A name that two **Contexts** both define as a **Term** and that no **Context Relationship** between them
-mentions.
+A name that two **Contexts** both define as a **Term**, where no heading has **Statements** under it that mention
+the name and name both **Contexts**.
 _Avoid_: duplicate term
 
 **Unresolved Phrase**:
-A bold phrase that names no **Term**, or a **Context Relationship** label that names no **Context**.
+A bold phrase that names neither a **Term** nor a **Context**, or a name in a bold label such as "Ordering →
+Billing" that names no **Context**.
 _Avoid_: broken link, dangling reference
+
+## Relationships
+
+- A **Lookup** of a **Term** gives its **References** both ways, its **Co-mentions**, and the **Statements** that
+  mention it.
+- The **Statements** under one heading that mention a name and name both **Contexts** that define it, typically
+  **Context Relationships**, keep it from being an **Unmapped Name**.

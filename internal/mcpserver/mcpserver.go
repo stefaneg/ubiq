@@ -23,7 +23,8 @@ const instructions = `This repository keeps its ubiquitous language, the names i
 
 const lookupDescription = `Look up words in this repository's glossary. For each word it gives the Term the word ` +
 	`names: its definition, Context, file and line, the words the Term avoids, the Terms it refers to and that refer to ` +
-	`it, and the context relationships and ADRs that mention it. When a Term lists the word under Avoid, it says so ` +
+	`it, the Terms the glossary's statements mention alongside it, up to five of those statements, and the ADRs that ` +
+	`mention it. When a Term lists the word under Avoid, it says so ` +
 	`and gives the Term to use instead. When neither holds for the whole word, it splits a compound such as ` +
 	`StackImageResolver into the Terms and avoided words inside it, one line each; when no part matches either, it ` +
 	`lists the Terms that mention the word. Words may be prose ("stack images") or identifiers (StackImage, ` +
