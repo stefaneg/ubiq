@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -53,7 +54,9 @@ type Resolver struct {
 	order     []string // resolution order after a phrase's own context: map order
 	file      string   // the file being rendered, recorded on unresolved phrases
 	mentions  *mentions
+	contexts  *contextNames
 	lenient   bool // ADR mode: unresolved bold is emphasis, rendered as <b> and not reported
+	quiet     bool // unresolved bold is marked but not reported, for text whose Statements report it
 }
 
 func slug(s string) string {
@@ -170,12 +173,21 @@ func (r *Resolver) inline(text, ctx, where string) (string, []string) {
 		if strings.Contains(phrase, ":") || strings.HasSuffix(phrase, ".") { // speaker label, "Mission:" line, or a bold sentence
 			return "<b>" + phrase + "</b>"
 		}
-		id := r.lookup(html.UnescapeString(phrase), ctx)
+		plain := html.UnescapeString(phrase)
+		id := r.lookup(plain, ctx)
 		if id == "" {
-			if r.lenient {
+			if r.lenient || r.contexts.key(plain) != "" {
 				return "<b>" + phrase + "</b>"
 			}
-			r.model.Unresolved = append(r.model.Unresolved, Unresolved{Phrase: html.UnescapeString(phrase), Path: r.file, Context: ctx, Where: where})
+			if parts := r.contexts.label(plain); parts != nil {
+				for _, p := range parts {
+					if r.contexts.key(p) == "" {
+						r.report(Unresolved{Phrase: p, Path: r.file, Where: where})
+					}
+				}
+				return "<b>" + phrase + "</b>"
+			}
+			r.report(Unresolved{Phrase: plain, Path: r.file, Context: ctx, Where: where})
 			return `<span class="unres">` + phrase + `</span>`
 		}
 		if !seen[id] {
@@ -189,6 +201,33 @@ func (r *Resolver) inline(text, ctx, where string) (string, []string) {
 		text = strings.Replace(text, fmt.Sprintf("\x00%d\x00", i), "<code>"+c+"</code>", 1)
 	}
 	return text, ids
+}
+
+// quietly runs fn without reporting Unresolved Phrases, for text whose Statements report them.
+func (r *Resolver) quietly(fn func()) {
+	was := r.quiet
+	r.quiet = true
+	defer func() { r.quiet = was }()
+	fn()
+}
+
+// renderIntro renders an intro quietly; its Statements report its Unresolved Phrases.
+func (r *Resolver) renderIntro(lines []string, ctx string) (html string) {
+	r.quietly(func() { html, _ = r.block(lines, ctx, "") })
+	return html
+}
+
+// headingTerms resolves the Terms a heading names quietly; renderStatements reports its phrases once per heading.
+func (r *Resolver) headingTerms(heading, ctx, where string) (ids []string) {
+	r.quietly(func() { _, ids = r.inline(r.mentions.bold(heading, ""), ctx, where) })
+	return ids
+}
+
+// report records an Unresolved Phrase, unless the resolver is quiet.
+func (r *Resolver) report(u Unresolved) {
+	if !r.quiet {
+		r.model.Unresolved = append(r.model.Unresolved, u)
+	}
 }
 
 // block renders a list of markdown lines (headings, paragraphs, bullets,
@@ -320,9 +359,9 @@ func (r *Resolver) block(lines []string, ctx, where string) (string, []string) {
 	return out.String(), ids
 }
 
-func build(contexts []*rawContext, rels []rawRelationship, adrs []rawADR) *Model {
+func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []rawHeading, adrs []rawADR) *Model {
 	m := &Model{Terms: map[string]*Term{}}
-	r := &Resolver{byContext: map[string]map[string]string{}, model: m}
+	r := &Resolver{byContext: map[string]map[string]string{}, model: m, contexts: newContextNames(contexts)}
 	// pass 1: register terms
 	for _, rc := range contexts {
 		r.order = append(r.order, rc.key)
@@ -341,12 +380,10 @@ func build(contexts []*rawContext, rels []rawRelationship, adrs []rawADR) *Model
 	r.mentions = newMentions(m.Terms)
 	for _, rc := range contexts {
 		r.file = rc.path
-		intro, _ := r.block(rc.intro, rc.key, rc.name+" intro")
-		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: intro}
+		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: r.renderIntro(rc.intro, rc.key)}
 		for _, cname := range rc.clusterOrder {
 			cl := rc.clusters[cname]
-			ci, _ := r.block(cl.intro, rc.key, cname+" intro")
-			cc := Cluster{Key: slug(cname), Name: cname, Intro: ci}
+			cc := Cluster{Key: slug(cname), Name: cname, Intro: r.renderIntro(cl.intro, rc.key)}
 			for _, t := range cl.terms {
 				id := rc.key + "/" + slug(t.name)
 				term := m.Terms[id]
@@ -360,41 +397,63 @@ func build(contexts []*rawContext, rels []rawRelationship, adrs []rawADR) *Model
 		}
 		m.Contexts = append(m.Contexts, c)
 	}
+	for _, rc := range contexts {
+		r.file = rc.path
+		m.Statements = append(m.Statements, r.renderStatements(rc.key, rc.statements, rc.headings)...)
+	}
 	r.file = mapFile
-	m.Relationships = r.renderRelationships(contexts, rels)
+	m.Statements = append(m.Statements, r.renderStatements("", mapStatements, mapHeadings)...)
 	m.ADRs = r.renderADRs(adrs)
 	sort.Slice(m.Unresolved, func(i, j int) bool { return m.Unresolved[i].Phrase < m.Unresolved[j].Phrase })
 	return m
 }
 
-// renderRelationships resolves each label's names to contexts, by heading or by the map's link text, recording a
-// name that matches no context as unresolved, and renders the statement in the first context the label names.
-func (r *Resolver) renderRelationships(contexts []*rawContext, rels []rawRelationship) []ContextRelationship {
-	keys := map[string]string{}
-	for _, rc := range contexts {
-		keys[strings.ToLower(rc.name)] = rc.key
-		if rc.mapName != "" {
-			keys[strings.ToLower(rc.mapName)] = rc.key
+// renderStatements resolves the phrases of each Statement of r.file, adding the Terms and Contexts its nearest
+// heading names, and keeps those that mention a Term or name a Context. A Statement resolves in own, the Context of
+// the Glossary it is in, or in the Context Map in the first Context it names. Each heading's own phrases are reported
+// once.
+func (r *Resolver) renderStatements(own string, raws []rawStatement, headings []rawHeading) []Statement {
+	for _, h := range headings {
+		ctx := own
+		if ctx == "" {
+			ctx = first(r.contexts.named(h.text))
 		}
+		r.inline(r.mentions.bold(h.text, ""), ctx, h.label)
 	}
-	var out []ContextRelationship
-	for _, rel := range rels {
-		cr := ContextRelationship{Label: rel.label}
-		for _, n := range labelNames(rel.label) {
-			if k, ok := keys[strings.ToLower(n)]; ok {
-				cr.Contexts = append(cr.Contexts, k)
-			} else {
-				r.model.Unresolved = append(r.model.Unresolved, Unresolved{Phrase: n, Path: r.file, Where: "relationship " + rel.label})
-			}
+	var out []Statement
+	for _, s := range raws {
+		named := union(r.contexts.named(s.text), r.contexts.named(s.heading))
+		ctx := own
+		if ctx == "" {
+			ctx = first(named)
 		}
-		ctx := ""
-		if len(cr.Contexts) > 0 {
-			ctx = cr.Contexts[0]
+		h, ids := r.inline(r.mentions.bold(s.text, ""), ctx, s.label)
+		if s.heading != "" {
+			ids = union(ids, r.headingTerms(s.heading, ctx, s.label))
 		}
-		cr.HTML, cr.TermIDs = r.inline(r.mentions.bold(rel.text, ""), ctx, "relationship "+rel.label)
-		out = append(out, cr)
+		if len(ids) == 0 && len(named) == 0 {
+			continue
+		}
+		out = append(out, Statement{Label: s.label, Path: r.file, Line: s.line, HTML: h, TermIDs: ids, Contexts: named})
 	}
 	return out
+}
+
+func first(keys []string) string {
+	if len(keys) == 0 {
+		return ""
+	}
+	return keys[0]
+}
+
+// union is a followed by the ids of b that a lacks.
+func union(a, b []string) []string {
+	for _, id := range b {
+		if !slices.Contains(a, id) {
+			a = append(a, id)
+		}
+	}
+	return a
 }
 
 // without returns ids less id.

@@ -162,19 +162,40 @@ func TestLoadErrors(t *testing.T) {
 	}
 }
 
-func TestLoadReadsTheMapsRelationships(t *testing.T) {
-	model := glossarytest.Load(t)
-	require.Len(t, model.Relationships, 2)
-	first, second := model.Relationships[0], model.Relationships[1]
-	assert.Equal(t, "Workspace → Stacks", first.Label)
-	assert.Equal(t, []string{"workspace", "stacks"}, first.Contexts)
-	assert.Equal(t, []string{"stacks/stack-image", "workspace/image"}, first.TermIDs)
-	assert.Contains(t, first.HTML, `data-id="workspace/image"`)
-	assert.Equal(t, []string{"stacks", "common"}, second.Contexts)
-	assert.Equal(t, []string{"stacks/stack-image", "common/image-ref"}, second.TermIDs, "continuation lines join the bullet")
+// mapStatement is a Statement of the Context Map, without its HTML.
+type mapStatement struct {
+	Label    string
+	Contexts []string
+	Terms    []string
 }
 
-func TestRelationshipLabelsNameContextsByHeadingOrMapLink(t *testing.T) {
+func mapStatements(model *glossary.Model) []mapStatement {
+	var out []mapStatement
+	for _, s := range model.Statements {
+		if s.Path == "GLOSSARY-MAP.md" {
+			out = append(out, mapStatement{s.Label, s.Contexts, s.TermIDs})
+		}
+	}
+	return out
+}
+
+func TestLoadReadsEveryBlockOfTheMapAsAStatement(t *testing.T) {
+	model := glossarytest.Load(t)
+	assert.Equal(t, []mapStatement{
+		{"Contexts", []string{"workspace"}, nil},
+		{"Contexts", []string{"stacks"}, nil},
+		{"Contexts", []string{"common"}, nil},
+		{"Contexts", []string{"workspace"}, []string{"workspace/workspace"}},
+		{"Relationships", []string{"workspace", "stacks"}, []string{"stacks/stack-image", "workspace/image"}},
+		{"Relationships", []string{"stacks", "common"}, []string{"stacks/stack-image", "common/image-ref"}},
+		{"Cross-context vocabulary › Deliberate mirrors › Run", []string{"workspace"}, []string{"workspace/workspace", "workspace/run"}},
+	}, mapStatements(model), "a Context is named by its link text, in a bold label, or written capitalised; "+
+		"phrases resolve in the first Context a Statement names")
+	assert.Contains(t, model.Unresolved, glossary.Unresolved{Phrase: "Spectre", Path: "GLOSSARY-MAP.md", Context: "workspace",
+		Where: "Cross-context vocabulary › Deliberate mirrors › Run"})
+}
+
+func TestStatementsNameContextsByHeadingOrMapLink(t *testing.T) {
 	root := t.TempDir()
 	glossarytest.WriteTree(t, root, map[string]string{
 		"GLOSSARY-MAP.md": `# Glossary Map
@@ -189,6 +210,7 @@ func TestRelationshipLabelsNameContextsByHeadingOrMapLink(t *testing.T) {
 - **Orders -> Billing**: each **Order** becomes an **Invoice**.
 - **Billing ↔ Ordering**: a **Refund** reverses an **Invoice**.
 - **Shipping → Billing**: no such context.
+- Ordering hands each **Order** to Billing.
 - Without a label.
 `,
 		"ordering/GLOSSARY.md": "# Ordering\n\n## Language\n\n**Order**:\nA request for goods.\n",
@@ -196,14 +218,273 @@ func TestRelationshipLabelsNameContextsByHeadingOrMapLink(t *testing.T) {
 	})
 	model, err := glossary.Load(root)
 	require.NoError(t, err)
-	require.Len(t, model.Relationships, 4)
-	assert.Equal(t, []string{"ordering", "billing"}, model.Relationships[0].Contexts, "by the map's link text")
-	assert.Equal(t, []string{"ordering/order", "billing/invoice"}, model.Relationships[0].TermIDs)
-	assert.Equal(t, []string{"billing", "ordering"}, model.Relationships[1].Contexts, "by heading")
-	assert.Equal(t, []string{"billing"}, model.Relationships[2].Contexts)
-	assert.Equal(t, glossary.ContextRelationship{HTML: "Without a label."}, model.Relationships[3])
+	assert.Equal(t, []mapStatement{
+		{"Contexts", []string{"ordering"}, nil},
+		{"Contexts", []string{"billing"}, nil},
+		{"Relationships", []string{"ordering", "billing"}, []string{"ordering/order", "billing/invoice"}},
+		{"Relationships", []string{"billing", "ordering"}, []string{"billing/invoice"}},
+		{"Relationships", []string{"billing"}, nil},
+		{"Relationships", []string{"ordering", "billing"}, []string{"ordering/order"}},
+	}, mapStatements(model), "by the map's link text or by heading, in bold or capitalised; a Statement that names "+
+		"neither a Term nor a Context is dropped")
+	assert.Contains(t, model.Statements[len(model.Statements)-4].HTML, "<b>Orders -&gt; Billing</b>")
 	assert.Equal(t, []glossary.Unresolved{
-		{Phrase: "Refund", Path: "GLOSSARY-MAP.md", Context: "billing", Where: "relationship Billing ↔ Ordering"},
-		{Phrase: "Shipping", Path: "GLOSSARY-MAP.md", Where: "relationship Shipping → Billing"},
+		{Phrase: "Refund", Path: "GLOSSARY-MAP.md", Context: "billing", Where: "Relationships"},
+		{Phrase: "Shipping", Path: "GLOSSARY-MAP.md", Where: "Relationships"},
 	}, model.Unresolved, "a label name that matches no context is unresolved")
+}
+
+func TestLoadReadsTermEntriesUnderAnyHeading(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Common
+
+Shared vocabulary.
+
+## Language
+
+**Order**:
+A request for goods.
+
+## Image References
+
+How images are named.
+
+### Language
+
+**Image Ref**:
+A reference to an image by **Tag**.
+
+**Tag**:
+A mutable label.
+
+### Relationships
+
+- An **Image Ref** has one **Tag**.
+
+## Scheduling
+
+### Language
+
+**Run**:
+One invocation of an **Order**.
+
+## Notes
+
+**Note**:
+A Term under a heading that names no Cluster form.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	require.Len(t, model.Contexts, 1)
+	var clusters [][]string
+	for _, c := range model.Contexts[0].Clusters {
+		clusters = append(clusters, append([]string{c.Name}, c.TermIDs...))
+	}
+	assert.Equal(t, [][]string{
+		{"General", "common/order"},
+		{"Image References", "common/image-ref", "common/tag"},
+		{"Scheduling", "common/run"},
+		{"Notes", "common/note"},
+	}, clusters, "a Term's Cluster is the nearest heading above it, skipping one named Language")
+	assert.Equal(t, 16, model.Terms["common/image-ref"].Line)
+	assert.Equal(t, []string{"common/tag"}, model.Terms["common/image-ref"].Refs)
+	assert.Equal(t, []string{"common/order"}, model.Terms["common/run"].Refs)
+	assert.Equal(t, "<p>How images are named.</p>", model.Contexts[0].Clusters[1].Intro)
+	assert.Equal(t, "<p>Shared vocabulary.</p>", model.Contexts[0].Intro)
+}
+
+func TestLoadReadsEveryOtherBlockOfAGlossaryAsAStatement(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": "# Common\n" + `
+Shared vocabulary for **Order** and **Spectre** handling.
+
+## Language
+
+### Orders
+
+**Order**:
+A request for goods.
+
+**Customer**:
+A person who places an **Order**.
+
+**Invoice**:
+A bill.
+
+### Relationships
+
+- A **Customer** places many **Orders** and
+  pays each **Invoice**.
+- A **Customer** owns a **Ghost**.
+
+> An **Order** is final.
+
+| Term | Notes |
+| --- | --- |
+| **Invoice** | sent to a Customer |
+
+` + "```text\n**Phantom** is code.\n```\n" + `
+#### Invoice
+
+- Sent once per **Order**.
+- No Term here.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	type statement struct {
+		Label string
+		Line  int
+		Terms []string
+	}
+	var got []statement
+	for _, s := range model.Statements {
+		assert.Equal(t, "GLOSSARY.md", s.Path)
+		got = append(got, statement{s.Label, s.Line, s.TermIDs})
+	}
+	assert.Equal(t, []statement{
+		{"Common", 3, []string{"common/order"}},
+		{"Language › Relationships", 20, []string{"common/customer", "common/order", "common/invoice"}},
+		{"Language › Relationships", 22, []string{"common/customer"}},
+		{"Language › Relationships", 24, []string{"common/order"}},
+		{"Language › Relationships", 28, []string{"common/invoice", "common/customer"}},
+		{"Language › Relationships › Invoice", 36, []string{"common/order", "common/invoice"}},
+		{"Language › Relationships › Invoice", 37, []string{"common/invoice"}},
+	}, got, "a bullet joins its continuation lines; the nearest heading's Terms join each Statement under it")
+	assert.Contains(t, model.Statements[1].HTML, `data-id="common/invoice">Invoice</a>`)
+	assert.Equal(t, []glossary.Unresolved{
+		{Phrase: "Ghost", Path: "GLOSSARY.md", Context: "common", Where: "Language › Relationships"},
+		{Phrase: "Spectre", Path: "GLOSSARY.md", Context: "common", Where: "Common"},
+	}, model.Unresolved, "fenced code is skipped, and the intro's bold is reported once")
+}
+
+func TestLoadReportsUnresolvedPhrasesInAGlossaryWithoutTerms(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": "# Empty\n\nUses **Missing Term**.\n"})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []glossary.Unresolved{
+		{Phrase: "Missing Term", Path: "GLOSSARY.md", Context: "empty", Where: "Empty"},
+	}, model.Unresolved, "a Glossary without Terms still reports its Statements' phrases")
+}
+
+func TestLoadReportsUnresolvedPhrasesInEachClusterIntroOnce(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Common
+
+## Language
+
+### Orders
+
+About **Ghost**.
+
+**Order**:
+A request.
+
+### Bills
+
+About **Phantom**.
+
+**Invoice**:
+A bill.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []glossary.Unresolved{
+		{Phrase: "Ghost", Path: "GLOSSARY.md", Context: "common", Where: "Language › Orders"},
+		{Phrase: "Phantom", Path: "GLOSSARY.md", Context: "common", Where: "Language › Bills"},
+	}, model.Unresolved, "each intro's phrases are reported by its Statement, not again by the intro")
+}
+
+// lineTerms is a Statement's line and the Terms it mentions.
+type lineTerms struct {
+	Line  int
+	Terms []string
+}
+
+func statementLines(model *glossary.Model) []lineTerms {
+	var out []lineTerms
+	for _, s := range model.Statements {
+		out = append(out, lineTerms{s.Line, s.TermIDs})
+	}
+	return out
+}
+
+func TestLoadSkipsFencedCodeInsideAListItem(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Common
+
+## Language
+
+**Order**:
+A request.
+
+**Invoice**:
+A bill.
+
+## Examples
+
+- A bullet with an example:
+  ~~~
+  Order and Invoice and **Ghost**.
+  ~~~
+  After the example, an **Invoice**.
+- Each **Order** is final.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []lineTerms{
+		{17, []string{"common/invoice"}},
+		{18, []string{"common/order"}},
+	}, statementLines(model), "the item ends at the fence; text after the fence is a Statement of its own")
+	assert.Empty(t, model.Unresolved)
+}
+
+func TestLoadReadsALineThatOnlyStartsWithBackticksAsText(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": "# Common\n" + `
+## Language
+
+**Order**:
+A request.
+
+**Invoice**:
+A bill.
+
+## Examples
+
+- An example of
+  ` + "```code```" + ` and then an **Order**.
+- An **Invoice** follows an **Order**.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []lineTerms{
+		{13, []string{"common/order"}},
+		{15, []string{"common/invoice", "common/order"}},
+	}, statementLines(model), "a backtick fence's info string has no backtick, so the line is inline code")
+}
+
+func TestLoadClosesAFenceOnlyWithItsOwnMarkerAtLeastAsLong(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": "# Common\n" + `
+## Language
+
+**Order**:
+A request.
+
+## Examples
+
+~~~~
+` + "```" + `
+**Ghost** in code.
+~~~
+**Phantom** still in code.
+~~~~
+
+After the code, an **Order**.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []lineTerms{{17, []string{"common/order"}}}, statementLines(model))
+	assert.Empty(t, model.Unresolved, "a backtick fence or a shorter tilde fence does not close a ~~~~ fence")
 }
