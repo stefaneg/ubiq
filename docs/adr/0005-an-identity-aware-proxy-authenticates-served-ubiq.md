@@ -1,6 +1,6 @@
 # An identity-aware proxy authenticates served ubiq
 
-A served ubiq owns no authentication code. It sits behind an identity-aware proxy, Pomerium first, which logs each
+The Server owns no authentication code. It sits behind an identity-aware proxy, Pomerium first, which logs each
 Person in at the deployment's Identity Provider, acts as the OAuth 2.1 authorization server that Agents talk to, and
 hands ubiq the Person as a signed assertion that ubiq verifies against the proxy's published keys. ubiq listens only
 where the proxy can reach it. An ordinary Identity Provider cannot serve Agents directly: none of the common ones lets

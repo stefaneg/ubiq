@@ -111,13 +111,23 @@ _Avoid_: admin, owner, reviewer
 ### People
 
 **Identity Provider**:
-The external OpenID Connect provider a deployment trusts to say who a person is.
+The external OpenID Connect provider a **Deployment** trusts to say who a person is.
 _Avoid_: IdP, SSO, login provider
 
 **Person**:
-A human the **Identity Provider** has identified. Everything a served ubiq does, it does for a Person.
+A human the **Identity Provider** has identified. Everything a **Server** does, it does for a Person.
 _Avoid_: user, account, principal
 
 **Agent**:
 An MCP client acting for a **Person**.
 _Avoid_: client, tool, bot
+
+### Serving
+
+**Server**:
+The long-running ubiq process that serves the page and the MCP tools for one repository.
+_Avoid_: served ubiq, service, web server, daemon
+
+**Deployment**:
+One **Server** with its proxy, the **Identity Provider** it trusts, and the repository it serves.
+_Avoid_: instance, installation, environment
