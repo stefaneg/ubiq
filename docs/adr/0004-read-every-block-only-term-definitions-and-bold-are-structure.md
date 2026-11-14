@@ -9,6 +9,6 @@ on which sections to read, though its dropping of the Shared and Home Context st
 Context Relationships to every Statement.
 
 Reading only the latest format's sections dropped the Relationships, Flagged ambiguities and Cross-context vocabulary
-that older Glossaries such as axis's hold. That left most of their Terms as Orphans or Unmapped Names, and a parser per
+that older Glossaries hold. That left most of their Terms as Orphans or Unmapped Names, and a parser per
 format would have to chase every variant. The price is that bold anywhere in a Glossary now claims a Term. Also, a
 heading whose Statements name every Context relates every name mentioned under it.
