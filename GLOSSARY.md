@@ -122,6 +122,19 @@ _Avoid_: user, account, principal
 An MCP client acting for a **Person**.
 _Avoid_: client, tool, bot
 
+**Reader**:
+A **Person** the **Identity Provider** admits, who may read the **Domain Model** through the **Server**.
+_Avoid_: viewer, guest, visitor
+
+**Writer**:
+A **Person** whose identity satisfies the **Deployment**'s **Writer Rule**, who may make **Changes**. Every other
+**Person** is a **Reader**.
+_Avoid_: editor, contributor, author
+
+**Writer Rule**:
+The claim name and accepted values a **Deployment** configures to tell a **Writer** from a **Reader**.
+_Avoid_: allowlist, ACL, permission, role mapping
+
 ### Serving
 
 **Server**:
