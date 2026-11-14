@@ -357,17 +357,17 @@ A bill.
 	}, model.Unresolved, "fenced code is skipped, and the intro's bold is reported once")
 }
 
-func TestLoadReportsUnresolvedBoldInAGlossaryWithoutTerms(t *testing.T) {
+func TestLoadReportsUnresolvedPhrasesInAGlossaryWithoutTerms(t *testing.T) {
 	root := t.TempDir()
 	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": "# Empty\n\nUses **Missing Term**.\n"})
 	model, err := glossary.Load(root)
 	require.NoError(t, err)
 	assert.Equal(t, []glossary.Unresolved{
 		{Phrase: "Missing Term", Path: "GLOSSARY.md", Context: "empty", Where: "Empty"},
-	}, model.Unresolved)
+	}, model.Unresolved, "a Glossary without Terms still reports its Statements' phrases")
 }
 
-func TestLoadReportsUnresolvedBoldInEachClusterIntroOnce(t *testing.T) {
+func TestLoadReportsUnresolvedPhrasesInEachClusterIntroOnce(t *testing.T) {
 	root := t.TempDir()
 	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Common
 
@@ -392,7 +392,21 @@ A bill.
 	assert.Equal(t, []glossary.Unresolved{
 		{Phrase: "Ghost", Path: "GLOSSARY.md", Context: "common", Where: "Language › Orders"},
 		{Phrase: "Phantom", Path: "GLOSSARY.md", Context: "common", Where: "Language › Bills"},
-	}, model.Unresolved)
+	}, model.Unresolved, "each intro's phrases are reported by its Statement, not again by the intro")
+}
+
+// lineTerms is a Statement's line and the Terms it mentions.
+type lineTerms struct {
+	Line  int
+	Terms []string
+}
+
+func statementLines(model *glossary.Model) []lineTerms {
+	var out []lineTerms
+	for _, s := range model.Statements {
+		out = append(out, lineTerms{s.Line, s.TermIDs})
+	}
+	return out
 }
 
 func TestLoadSkipsFencedCodeInsideAListItem(t *testing.T) {
@@ -413,12 +427,64 @@ A bill.
   ~~~
   Order and Invoice and **Ghost**.
   ~~~
+  After the example, an **Invoice**.
 - Each **Order** is final.
 `})
 	model, err := glossary.Load(root)
 	require.NoError(t, err)
-	require.Len(t, model.Statements, 1)
-	assert.Equal(t, 17, model.Statements[0].Line)
-	assert.Equal(t, []string{"common/order"}, model.Statements[0].TermIDs)
+	assert.Equal(t, []lineTerms{
+		{17, []string{"common/invoice"}},
+		{18, []string{"common/order"}},
+	}, statementLines(model), "the item ends at the fence; text after the fence is a Statement of its own")
 	assert.Empty(t, model.Unresolved)
+}
+
+func TestLoadReadsALineThatOnlyStartsWithBackticksAsText(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": "# Common\n" + `
+## Language
+
+**Order**:
+A request.
+
+**Invoice**:
+A bill.
+
+## Examples
+
+- An example of
+  ` + "```code```" + ` and then an **Order**.
+- An **Invoice** follows an **Order**.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []lineTerms{
+		{13, []string{"common/order"}},
+		{15, []string{"common/invoice", "common/order"}},
+	}, statementLines(model), "a backtick fence's info string has no backtick, so the line is inline code")
+}
+
+func TestLoadClosesAFenceOnlyWithItsOwnMarkerAtLeastAsLong(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": "# Common\n" + `
+## Language
+
+**Order**:
+A request.
+
+## Examples
+
+~~~~
+` + "```" + `
+**Ghost** in code.
+~~~
+**Phantom** still in code.
+~~~~
+
+After the code, an **Order**.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []lineTerms{{17, []string{"common/order"}}}, statementLines(model))
+	assert.Empty(t, model.Unresolved, "a backtick fence or a shorter tilde fence does not close a ~~~~ fence")
 }

@@ -95,11 +95,10 @@ func parseContext(displayPath, path string) (*rawContext, error) {
 	}
 	var stack []heading
 	var pending []string // the lines since the nearest heading, which become a Cluster's intro if a Term follows
-	inFence := false
+	var code fences
 	for i := 0; i < len(lines); {
 		ln := lines[i]
-		if isFence(ln) || inFence {
-			inFence = inFence != isFence(ln)
+		if code.skip(ln) {
 			i++
 			continue
 		}
@@ -173,7 +172,8 @@ func parseStatements(lines []string) ([]rawStatement, []rawHeading) {
 		out = append(out, s)
 	}
 	var para []string
-	paraLine, quote, inFence := 0, false, false
+	paraLine, quote := 0, false
+	var code fences
 	flush := func() {
 		if len(para) > 0 {
 			add(paraLine, strings.Join(para, " "))
@@ -194,9 +194,8 @@ func parseStatements(lines []string) ([]rawStatement, []rawHeading) {
 		trimmed := strings.TrimSpace(ln)
 		indent, item, isItem := listItem(ln)
 		switch {
-		case isFence(ln) || inFence:
+		case code.skip(ln):
 			flush()
-			inFence = inFence != isFence(ln)
 			i++
 		case reH.MatchString(ln):
 			flush()
@@ -253,8 +252,8 @@ func listItem(line string) (indent, text string, ok bool) {
 // continues reports whether line continues the text of a list item indented by indent: it is indented further and
 // starts neither a table nor a fence, which the main loop reads on their own.
 func continues(line, indent string) bool {
-	t := strings.TrimSpace(line)
-	return strings.HasPrefix(line, indent+"  ") && !strings.HasPrefix(t, "|") && !isFence(line)
+	_, opens := fenceMarker(line)
+	return strings.HasPrefix(line, indent+"  ") && !strings.HasPrefix(strings.TrimSpace(line), "|") && !opens
 }
 
 // readTerm reads the Term entry whose "**Name**:" line is lines[i], up to the next blank line, heading or entry, and
@@ -295,9 +294,40 @@ func clusterName(stack []heading) string {
 
 func isLanguage(heading string) bool { return strings.EqualFold(heading, "Language") }
 
-func isFence(line string) bool {
+// fences tracks fenced code across the lines of a document. The zero value is outside any fence.
+type fences struct {
+	open string // the marker of the open fence, such as "```" or "~~~~", or "" outside one
+}
+
+// skip reports whether line is fenced code or one of its fence lines, and moves past it. A fence closes only on a
+// line holding nothing but its own character, repeated at least as often as in the marker that opened it.
+func (f *fences) skip(line string) bool {
+	if f.open != "" {
+		t := strings.TrimSpace(line)
+		if strings.Trim(t, f.open[:1]) == "" && len(t) >= len(f.open) {
+			f.open = ""
+		}
+		return true
+	}
+	if marker, ok := fenceMarker(line); ok {
+		f.open = marker
+		return true
+	}
+	return false
+}
+
+// fenceMarker returns the run of three or more backticks or tildes that opens a fence on line. A backtick fence's
+// info string holds no backtick, so a line such as "```code``` and more" is inline code, not a fence.
+func fenceMarker(line string) (string, bool) {
 	t := strings.TrimSpace(line)
-	return strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~")
+	if len(t) < 3 || (t[0] != '`' && t[0] != '~') {
+		return "", false
+	}
+	marker := t[:len(t)-len(strings.TrimLeft(t, t[:1]))]
+	if len(marker) < 3 || (t[0] == '`' && strings.Contains(t[len(marker):], "`")) {
+		return "", false
+	}
+	return marker, true
 }
 
 // ---- context map ----------------------------------------------------------

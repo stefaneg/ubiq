@@ -203,20 +203,23 @@ func (r *Resolver) inline(text, ctx, where string) (string, []string) {
 	return text, ids
 }
 
-// intro renders an intro without reporting its Unresolved Phrases, which its Statements report.
-func (r *Resolver) intro(lines []string, ctx string) string {
+// quietly runs fn without reporting Unresolved Phrases, for text whose Statements report them.
+func (r *Resolver) quietly(fn func()) {
+	was := r.quiet
 	r.quiet = true
-	defer func() { r.quiet = false }()
-	html, _ := r.block(lines, ctx, "")
+	defer func() { r.quiet = was }()
+	fn()
+}
+
+// renderIntro renders an intro quietly; its Statements report its Unresolved Phrases.
+func (r *Resolver) renderIntro(lines []string, ctx string) (html string) {
+	r.quietly(func() { html, _ = r.block(lines, ctx, "") })
 	return html
 }
 
-// headingTerms resolves the Terms a heading names without reporting its Unresolved Phrases, which renderStatements
-// reports once per heading.
-func (r *Resolver) headingTerms(heading, ctx, where string) []string {
-	r.quiet = true
-	defer func() { r.quiet = false }()
-	_, ids := r.inline(r.mentions.bold(heading, ""), ctx, where)
+// headingTerms resolves the Terms a heading names quietly; renderStatements reports its phrases once per heading.
+func (r *Resolver) headingTerms(heading, ctx, where string) (ids []string) {
+	r.quietly(func() { _, ids = r.inline(r.mentions.bold(heading, ""), ctx, where) })
 	return ids
 }
 
@@ -377,10 +380,10 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 	r.mentions = newMentions(m.Terms)
 	for _, rc := range contexts {
 		r.file = rc.path
-		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: r.intro(rc.intro, rc.key)}
+		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: r.renderIntro(rc.intro, rc.key)}
 		for _, cname := range rc.clusterOrder {
 			cl := rc.clusters[cname]
-			cc := Cluster{Key: slug(cname), Name: cname, Intro: r.intro(cl.intro, rc.key)}
+			cc := Cluster{Key: slug(cname), Name: cname, Intro: r.renderIntro(cl.intro, rc.key)}
 			for _, t := range cl.terms {
 				id := rc.key + "/" + slug(t.name)
 				term := m.Terms[id]
