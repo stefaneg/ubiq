@@ -96,7 +96,7 @@ _Avoid_: broken link, dangling reference
 ### Changes
 
 **Change**:
-One accepted write to the **Domain Model**, attributed to one person and recorded as one commit.
+One accepted write to the **Domain Model** that an **Agent** makes for a **Person**, recorded as one commit.
 _Avoid_: edit, write, revision, update
 
 **Batch**:
@@ -105,5 +105,19 @@ branch.
 _Avoid_: round, change set, pending changes
 
 **Maintainer**:
-A person who merges a **Batch** into the default branch. The repository, not ubiq, decides who that is.
+A **Person** who merges a **Batch** into the default branch. The repository, not ubiq, decides who that is.
 _Avoid_: admin, owner, reviewer
+
+### People
+
+**Identity Provider**:
+The external OpenID Connect provider a deployment trusts to say who a person is.
+_Avoid_: IdP, SSO, login provider
+
+**Person**:
+A human the **Identity Provider** has identified. Everything a served ubiq does, it does for a Person.
+_Avoid_: user, account, principal
+
+**Agent**:
+An MCP client acting for a **Person**.
+_Avoid_: client, tool, bot
