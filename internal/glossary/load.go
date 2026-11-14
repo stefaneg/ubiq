@@ -46,7 +46,8 @@ func Load(root string) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	return build(contexts, parseMapRelationships(mapLines), adrs), nil
+	statements, headings := parseStatements(mapLines)
+	return build(contexts, statements, headings, adrs), nil
 }
 
 // contextLinks lists the context glossaries under root and returns the context map's lines, nil without a map.

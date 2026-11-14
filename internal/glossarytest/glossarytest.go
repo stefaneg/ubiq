@@ -11,8 +11,9 @@ import (
 	"github.com/stefaneg/ubiq/internal/glossary"
 )
 
-// Root writes a three-context glossary, a context map and one ADR into a temp dir. The Relationships, Flagged
-// ambiguities and Cross-context vocabulary sections are not part of the domain-modeling format and are not read.
+// Root writes a three-context glossary, a context map and one ADR into a temp dir. Its Relationships, Flagged
+// ambiguities and Cross-context vocabulary sections hold the Statements, including the unresolved Ghost, Phantom and
+// Spectre.
 func Root(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

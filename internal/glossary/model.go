@@ -1,6 +1,11 @@
 // Package glossary builds the glossary Model from a repository's GLOSSARY.md files, GLOSSARY-MAP.md and ADRs.
 package glossary
 
+import (
+	"html"
+	"regexp"
+)
+
 // Context is one glossary file.
 type Context struct {
 	Key      string    `json:"key"`  // slug of Name; prefixes the context's term ids
@@ -30,13 +35,15 @@ type Term struct {
 	Line       int      `json:"line"`
 }
 
-// ContextRelationship is one bullet of the context map's Relationships section, such as
-// "- **Ordering → Billing**: Ordering emits events Billing consumes".
-type ContextRelationship struct {
-	Label    string   `json:"label"`    // the bold label as written
-	Contexts []string `json:"contexts"` // keys of the contexts the label names, in label order
-	HTML     string   `json:"html"`     // the statement after the label
-	TermIDs  []string `json:"terms"`    // terms the statement refers to
+// Statement is one block of a Glossary or the Context Map outside a Term entry: a paragraph, a bullet with its
+// continuation lines, a table row, or a blockquote. Only Statements that mention a Term or name a Context are kept.
+type Statement struct {
+	Label    string   `json:"label"` // the headings above it below the "#" title, as "A › B"; the title above them all
+	Path     string   `json:"path"`
+	Line     int      `json:"line"`
+	HTML     string   `json:"html"`
+	TermIDs  []string `json:"terms"`    // the Terms it and its nearest heading mention
+	Contexts []string `json:"contexts"` // keys of the Contexts it and its nearest heading name, in order
 }
 
 type Unresolved struct {
@@ -49,11 +56,14 @@ type Unresolved struct {
 type Model struct {
 	Contexts []Context        `json:"contexts"`
 	Terms    map[string]*Term `json:"terms"`
-	// Relationships is the context map's Relationships section; empty without a map.
-	Relationships []ContextRelationship `json:"relationships"`
-	Unresolved    []Unresolved          `json:"unresolved"`
-	ADRs          []ADR                 `json:"adrs"`
+	// Statements is the Statements of every Glossary, then of the Context Map.
+	Statements []Statement  `json:"statements"`
+	Unresolved []Unresolved `json:"unresolved"`
+	ADRs       []ADR        `json:"adrs"`
 }
+
+// IsContextRelationship reports whether the Statement names two or more Contexts.
+func (s Statement) IsContextRelationship() bool { return len(s.Contexts) >= 2 }
 
 // ContextName is the heading of the context with key, or the key when the model has no such context.
 func (m *Model) ContextName(key string) string {
@@ -63,4 +73,11 @@ func (m *Model) ContextName(key string) string {
 		}
 	}
 	return key
+}
+
+var reTag = regexp.MustCompile(`<[^>]*>`)
+
+// PlainText is the text of rendered html, such as a Term's Definition, without its tags.
+func PlainText(h string) string {
+	return html.UnescapeString(reTag.ReplaceAllString(h, ""))
 }

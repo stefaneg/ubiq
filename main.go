@@ -3,29 +3,41 @@
 //
 //	ubiq html [-out glossary.html]
 //	ubiq check [file ...]
+//	ubiq lookup word ...
 //	ubiq health
+//	ubiq mcp
 //
-// check reads stdin when no file is given. It lists the terms it recognised and the Capitalised Phrases
-// that have no entry. health prints the glossary health report as one "path:line: rule: name: note" line per
-// finding and exits 1 when there is any. Every command exits 2 on a usage or read error.
+// check reads stdin when no file is given. It lists the terms it recognised, the Capitalised Phrases
+// that have no entry, and the Avoided Words it used with the terms to use instead. lookup tells, for each word,
+// the Terms it names or the Terms to use instead of it, and failing both, the Terms that mention it. health
+// prints the glossary health report as one "path:line: rule: name: note" line per finding and exits 1 when
+// there is any. mcp serves lookup and check as Model Context Protocol tools on stdin and stdout, reading the
+// glossary afresh on every call. Every command exits 2 on a usage or read error.
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime/debug"
 	"strings"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/stefaneg/ubiq/internal/check"
 	"github.com/stefaneg/ubiq/internal/glossary"
 	"github.com/stefaneg/ubiq/internal/health"
+	"github.com/stefaneg/ubiq/internal/lookup"
+	"github.com/stefaneg/ubiq/internal/mcpserver"
 	"github.com/stefaneg/ubiq/internal/page"
 )
 
 const usage = "usage: ubiq html [-root dir] [-out file] | ubiq check [-root dir] [file ...] | " +
-	"ubiq health [-root dir]"
+	"ubiq lookup [-root dir] word ... | ubiq health [-root dir] | ubiq mcp [-root dir]"
 
 // errHealthFindings reports that the health command found something; main exits 1 for it.
 var errHealthFindings = errors.New("ubiq health: findings")
@@ -49,8 +61,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return runHTML(args[1:], stderr)
 	case "check":
 		return runCheck(args[1:], stdin, stdout)
+	case "lookup":
+		return runLookup(args[1:], stdout)
 	case "health":
 		return runHealth(args[1:], stdout, stderr)
+	case "mcp":
+		return runMCP(args[1:], stdin, stdout, stderr)
 	}
 	return fmt.Errorf("unknown command %q\n%s", args[0], usage)
 }
@@ -96,6 +112,59 @@ func runCheck(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 	check.New(model).Check(text).Write(stdout)
 	return nil
+}
+
+// runLookup writes the answer for each word, a blank line between them.
+func runLookup(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("lookup", flag.ContinueOnError)
+	fs.SetOutput(stdout)
+	root := fs.String("root", ".", "repository root holding GLOSSARY.md, GLOSSARY-MAP.md and docs/adr")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() == 0 {
+		return errors.New("ubiq lookup: name a word to look up\n" + usage)
+	}
+	model, err := glossary.Load(*root)
+	if err != nil {
+		return err
+	}
+	l := lookup.New(model)
+	for i, word := range fs.Args() {
+		if i > 0 {
+			fmt.Fprintln(stdout)
+		}
+		l.Find(word).Write(stdout)
+	}
+	return nil
+}
+
+// runMCP serves the Model Context Protocol tools on stdin and stdout until the client closes them.
+func runMCP(args []string, stdin io.Reader, stdout, status io.Writer) error {
+	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
+	fs.SetOutput(status)
+	root := fs.String("root", ".", "repository root holding GLOSSARY.md, GLOSSARY-MAP.md and docs/adr")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	abs, err := filepath.Abs(*root)
+	if err != nil {
+		return err
+	}
+	t := &mcp.IOTransport{Reader: io.NopCloser(stdin), Writer: nopWriteCloser{stdout}}
+	return mcpserver.New(abs, version()).Run(context.Background(), t)
+}
+
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }
+
+// version is the module version ubiq was built at, such as v0.3.0 for go install, or "dev".
+func version() string {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
 }
 
 // readInput concatenates the named files, or reads stdin when none are named.

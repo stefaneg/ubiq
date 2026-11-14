@@ -2,9 +2,7 @@ package health
 
 import (
 	"fmt"
-	"html"
 	"io"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -25,9 +23,10 @@ type Finding struct {
 // Check applies the page's health rules to the model and returns the findings sorted by file, line and rule.
 //
 //	long       definition longer than two sentences
-//	orphan     no other term's definition and no context relationship refers to the term (ADRs do not count)
-//	unmapped   a term name defined in two contexts that no context relationship between them mentions
-//	unresolved a bold phrase with no entry, or a relationship label naming no context
+//	orphan     no other term's definition and no statement mentions the term (ADRs do not count)
+//	unmapped   a term name defined in two contexts that the statements under no one heading both mention and
+//	           name those contexts in
+//	unresolved a bold phrase with no entry, or a part of a context label naming no context
 func Check(model *glossary.Model) []Finding {
 	paths := map[string]string{}
 	for _, c := range model.Contexts {
@@ -35,11 +34,12 @@ func Check(model *glossary.Model) []Finding {
 	}
 	inbound := map[string]int{}
 	byName := map[string][]string{}
-	for _, rel := range model.Relationships {
-		for _, id := range rel.TermIDs {
+	for _, s := range model.Statements {
+		for _, id := range s.TermIDs {
 			inbound[id]++
 		}
 	}
+	sections := sections(model.Statements)
 	for id, t := range model.Terms {
 		for _, r := range t.Refs {
 			inbound[r]++
@@ -52,7 +52,7 @@ func Check(model *glossary.Model) []Finding {
 		out = append(out, Finding{Path: paths[t.Context], Line: t.Line, Rule: rule, Name: t.Name, Note: note, Term: t.ID})
 	}
 	for id, t := range model.Terms {
-		if n := sentences(plainText(t.Definition)); n > 2 {
+		if n := sentences(glossary.PlainText(t.Definition)); n > 2 {
 			add(t, "long", fmt.Sprintf("%d sentences", n))
 		}
 		if inbound[id] == 0 {
@@ -64,7 +64,7 @@ func Check(model *glossary.Model) []Finding {
 		}
 		var unmapped []string
 		for _, other := range byName[strings.ToLower(t.Name)] {
-			if other != id && !related(model, t.Context, model.Terms[other].Context, byName[strings.ToLower(t.Name)]) {
+			if other != id && !related(sections, t.Context, model.Terms[other].Context, byName[strings.ToLower(t.Name)]) {
 				unmapped = append(unmapped, model.ContextName(model.Terms[other].Context))
 			}
 		}
@@ -96,25 +96,42 @@ func Check(model *glossary.Model) []Finding {
 	return out
 }
 
-// related reports whether a context relationship whose label names both contexts mentions one of the terms ids.
-func related(model *glossary.Model, a, b string, ids []string) bool {
-	for _, rel := range model.Relationships {
-		if !slices.Contains(rel.Contexts, a) || !slices.Contains(rel.Contexts, b) {
+// section is what the Statements directly under one heading mention and name, together.
+type section struct {
+	terms, contexts []string
+}
+
+// sections joins the Statements that share a file and a label.
+func sections(statements []glossary.Statement) []*section {
+	byKey := map[[2]string]*section{}
+	var out []*section
+	for _, s := range statements {
+		k := [2]string{s.Path, s.Label}
+		sec, ok := byKey[k]
+		if !ok {
+			sec = &section{}
+			byKey[k] = sec
+			out = append(out, sec)
+		}
+		sec.terms = append(sec.terms, s.TermIDs...)
+		sec.contexts = append(sec.contexts, s.Contexts...)
+	}
+	return out
+}
+
+// related reports whether the Statements under one heading name both contexts and mention one of the terms ids.
+func related(sections []*section, a, b string, ids []string) bool {
+	for _, sec := range sections {
+		if !slices.Contains(sec.contexts, a) || !slices.Contains(sec.contexts, b) {
 			continue
 		}
 		for _, id := range ids {
-			if slices.Contains(rel.TermIDs, id) {
+			if slices.Contains(sec.terms, id) {
 				return true
 			}
 		}
 	}
 	return false
-}
-
-var reTag = regexp.MustCompile(`<[^>]*>`)
-
-func plainText(h string) string {
-	return html.UnescapeString(reTag.ReplaceAllString(h, ""))
 }
 
 // sentences counts sentence ends: ".", "!" or "?" followed by whitespace or the end of the text, except inside an
