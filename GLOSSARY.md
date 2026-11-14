@@ -92,3 +92,18 @@ _Avoid_: duplicate term
 **Unresolved Phrase**:
 A bold phrase that names no **Term**, or a **Context Relationship** label that names no **Context**.
 _Avoid_: broken link, dangling reference
+
+### Changes
+
+**Change**:
+One accepted write to the **Domain Model**, attributed to one person and recorded as one commit.
+_Avoid_: edit, write, revision, update
+
+**Batch**:
+The sequence of **Changes** gathered on one numbered branch, awaiting a **Maintainer**'s merge into the default
+branch.
+_Avoid_: round, change set, pending changes
+
+**Maintainer**:
+A person who merges a **Batch** into the default branch. The repository, not ubiq, decides who that is.
+_Avoid_: admin, owner, reviewer
