@@ -15,6 +15,16 @@ idp_provider_url: http://keycloak.localhost.pomerium.io:8080/realms/ubiq
 idp_client_id: pomerium
 idp_client_secret: cb4f643442f24e06296c8807aa5c7ef2
 
+# MCP clients register with Pomerium in one of two ways, both off until configured here.
+# Client ID metadata documents: the client's id is a URL whose host must be allowed. Claude Code's is
+# https://claude.ai/oauth/claude-code-client-metadata.
+mcp_allowed_client_id_domains:
+  - claude.ai
+# Dynamic Client Registration, for clients without a metadata document (runtime flag, default off; without it the
+# authorization-server metadata shows no registration_endpoint and /.pomerium/mcp/register answers 403).
+runtime_flags:
+  mcp_dynamic_client_registration: true
+
 routes:
   # Shows the assertion JWT Pomerium forwards, groups claim included.
   - from: https://verify.localhost.pomerium.io

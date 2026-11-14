@@ -69,7 +69,9 @@ func runServe(args []string, status io.Writer) error {
 
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv },
-		&mcp.StreamableHTTPOptions{Stateless: true}))
+		// Pomerium reaches the loopback listener with the upstream's Host (host.docker.internal:8766); the SDK's
+		// DNS-rebinding guard would answer 403 "invalid Host header" to that.
+		&mcp.StreamableHTTPOptions{Stateless: true, DisableLocalhostProtection: true}))
 	mux.HandleFunc("/whoami", func(w http.ResponseWriter, r *http.Request) {
 		p, err := who(r.Context(), r.Header)
 		if err != nil {
