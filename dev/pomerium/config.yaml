@@ -26,6 +26,16 @@ routes:
             - domain:
                 is: ubiq.test
 
+  # The Server's page, served by the same process on the host (PROTOTYPE: `ubiq serve`).
+  - from: https://ubiq.localhost.pomerium.io
+    to: http://host.docker.internal:8766
+    pass_identity_headers: true
+    policy:
+      - allow:
+          or:
+            - domain:
+                is: ubiq.test
+
   # The Server's MCP endpoint, once it runs on the host. host.docker.internal is Docker Desktop's name for the host.
   - from: https://mcp.localhost.pomerium.io
     to: http://host.docker.internal:8766

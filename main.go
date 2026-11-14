@@ -67,6 +67,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return runHealth(args[1:], stdout, stderr)
 	case "mcp":
 		return runMCP(args[1:], stdin, stdout, stderr)
+	case "serve": // PROTOTYPE, see proto_serve.go
+		return runServe(args[1:], stderr)
 	}
 	return fmt.Errorf("unknown command %q\n%s", args[0], usage)
 }
