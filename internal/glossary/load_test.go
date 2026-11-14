@@ -356,3 +356,69 @@ A bill.
 		{Phrase: "Spectre", Path: "GLOSSARY.md", Context: "common", Where: "Common"},
 	}, model.Unresolved, "fenced code is skipped, and the intro's bold is reported once")
 }
+
+func TestLoadReportsUnresolvedBoldInAGlossaryWithoutTerms(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": "# Empty\n\nUses **Missing Term**.\n"})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []glossary.Unresolved{
+		{Phrase: "Missing Term", Path: "GLOSSARY.md", Context: "empty", Where: "Empty"},
+	}, model.Unresolved)
+}
+
+func TestLoadReportsUnresolvedBoldInEachClusterIntroOnce(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Common
+
+## Language
+
+### Orders
+
+About **Ghost**.
+
+**Order**:
+A request.
+
+### Bills
+
+About **Phantom**.
+
+**Invoice**:
+A bill.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []glossary.Unresolved{
+		{Phrase: "Ghost", Path: "GLOSSARY.md", Context: "common", Where: "Language › Orders"},
+		{Phrase: "Phantom", Path: "GLOSSARY.md", Context: "common", Where: "Language › Bills"},
+	}, model.Unresolved)
+}
+
+func TestLoadSkipsFencedCodeInsideAListItem(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Common
+
+## Language
+
+**Order**:
+A request.
+
+**Invoice**:
+A bill.
+
+## Examples
+
+- A bullet with an example:
+  ~~~
+  Order and Invoice and **Ghost**.
+  ~~~
+- Each **Order** is final.
+`})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	require.Len(t, model.Statements, 1)
+	assert.Equal(t, 17, model.Statements[0].Line)
+	assert.Equal(t, []string{"common/order"}, model.Statements[0].TermIDs)
+	assert.Empty(t, model.Unresolved)
+}

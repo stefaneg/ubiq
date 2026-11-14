@@ -223,7 +223,7 @@ func parseStatements(lines []string) ([]rawStatement, []rawHeading) {
 		case isItem:
 			flush()
 			start := i
-			for i++; i < len(lines) && strings.HasPrefix(lines[i], indent+"  ") && !strings.HasPrefix(strings.TrimSpace(lines[i]), "|"); i++ {
+			for i++; i < len(lines) && continues(lines[i], indent); i++ {
 				item += " " + strings.TrimSpace(lines[i])
 			}
 			add(start+1, item)
@@ -248,6 +248,13 @@ func listItem(line string) (indent, text string, ok bool) {
 		return m[1], m[2], true
 	}
 	return "", "", false
+}
+
+// continues reports whether line continues the text of a list item indented by indent: it is indented further and
+// starts neither a table nor a fence, which the main loop reads on their own.
+func continues(line, indent string) bool {
+	t := strings.TrimSpace(line)
+	return strings.HasPrefix(line, indent+"  ") && !strings.HasPrefix(t, "|") && !isFence(line)
 }
 
 // readTerm reads the Term entry whose "**Name**:" line is lines[i], up to the next blank line, heading or entry, and

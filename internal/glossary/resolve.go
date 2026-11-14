@@ -203,6 +203,23 @@ func (r *Resolver) inline(text, ctx, where string) (string, []string) {
 	return text, ids
 }
 
+// intro renders an intro without reporting its Unresolved Phrases, which its Statements report.
+func (r *Resolver) intro(lines []string, ctx string) string {
+	r.quiet = true
+	defer func() { r.quiet = false }()
+	html, _ := r.block(lines, ctx, "")
+	return html
+}
+
+// headingTerms resolves the Terms a heading names without reporting its Unresolved Phrases, which renderStatements
+// reports once per heading.
+func (r *Resolver) headingTerms(heading, ctx, where string) []string {
+	r.quiet = true
+	defer func() { r.quiet = false }()
+	_, ids := r.inline(r.mentions.bold(heading, ""), ctx, where)
+	return ids
+}
+
 // report records an Unresolved Phrase, unless the resolver is quiet.
 func (r *Resolver) report(u Unresolved) {
 	if !r.quiet {
@@ -360,14 +377,10 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 	r.mentions = newMentions(m.Terms)
 	for _, rc := range contexts {
 		r.file = rc.path
-		r.quiet = true // the intros' Statements report their phrases
-		intro, _ := r.block(rc.intro, rc.key, "")
-		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: intro}
+		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: r.intro(rc.intro, rc.key)}
 		for _, cname := range rc.clusterOrder {
 			cl := rc.clusters[cname]
-			ci, _ := r.block(cl.intro, rc.key, "")
-			cc := Cluster{Key: slug(cname), Name: cname, Intro: ci}
-			r.quiet = false
+			cc := Cluster{Key: slug(cname), Name: cname, Intro: r.intro(cl.intro, rc.key)}
 			for _, t := range cl.terms {
 				id := rc.key + "/" + slug(t.name)
 				term := m.Terms[id]
@@ -413,10 +426,7 @@ func (r *Resolver) renderStatements(own string, raws []rawStatement, headings []
 		}
 		h, ids := r.inline(r.mentions.bold(s.text, ""), ctx, s.label)
 		if s.heading != "" {
-			r.quiet = true
-			_, more := r.inline(r.mentions.bold(s.heading, ""), ctx, s.label)
-			r.quiet = false
-			ids = union(ids, more)
+			ids = union(ids, r.headingTerms(s.heading, ctx, s.label))
 		}
 		if len(ids) == 0 && len(named) == 0 {
 			continue
