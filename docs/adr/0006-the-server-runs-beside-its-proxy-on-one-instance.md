@@ -11,5 +11,9 @@ The Server has no notion of its public URL; that is the proxy's.
 
 - In development the two run under Docker Compose, and the Server may also run alone with a flag that names a fixed
   Person; that flag works only on a loopback address, and production has no such mode.
-- How the first instance is provisioned, by hand, by script, or by a baked image, is decided when the Deployment
-  first goes to AWS, after it runs locally. Infrastructure as code belongs to production readiness.
+- The instance is produced by Packer and Terraform run from a Maintainer's machine, no pipeline: Packer bakes an
+  Amazon Linux 2023 arm64 image holding Pomerium's package, the ubiq binary and both units; Terraform places one
+  instance with an Elastic IP, opens ports 80 and 443 only, and hands it its settings as user-data. The instance is
+  disposable: an upgrade or a credential rotation replaces it, and the Server re-clones on first start. Without a
+  domain the hostnames come from sslip.io, since Let's Encrypt refuses Amazon's default names; Pomerium fetches its
+  own certificates either way. High availability, monitoring and backups remain production readiness.
