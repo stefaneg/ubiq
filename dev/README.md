@@ -52,6 +52,29 @@ with a signed-in banner, `/whoami`, and the MCP tools at `/mcp` plus a `whoami` 
 `X-Pomerium-Jwt-Assertion`, verified against Pomerium's JWKS with the Pomerium Go SDK; `groups` containing
 `ubiq-writers` makes a Writer, anything else a Reader.
 
+### Writes: `define_term`
+
+With `-origin <git url>` the Server owns a clone at `-root`, reads from the open Batch (`ubiq/<n>`, highest on
+origin) and offers `define_term` (see `proto_write.go`). For a self-contained run, seed a bare origin from `main`:
+
+```sh
+git init --bare /tmp/ubiq-wayfinder/origin.git
+git push /tmp/ubiq-wayfinder/origin.git origin/main:refs/heads/main
+go run . serve -root /tmp/ubiq-wayfinder/clone -origin /tmp/ubiq-wayfinder/origin.git
+./mcp-login.sh writer writer /tmp/writer.tok
+./mcp-call.sh /tmp/writer.tok define_term '{"name":"Batch","definition":"A shared branch ...","cluster":"Changes"}'
+```
+
+`mcp-call.sh <token-file> <tool> [json]` calls any tool with a saved token. Pointing `-origin` at a real remote
+pushes `ubiq/<n>` branches there with whatever credentials the host's git has; that is the open question on the map.
+
+Observed: a Change is one commit, author the Person from the assertion, committer the Server's `-committer`
+identity; fetch, merge of `main`, edit, commit and push take about a quarter of a second against a local origin. A
+Reader's call, an empty name or definition, and an existing Term name are refused; a Term introducing an Orphan
+lands and the Orphan comes back as a warning. After a Maintainer merges the Batch into `main` by fast-forward, merge
+commit or squash, the next Change opens `ubiq/<n+1>`. When `main` conflicts with the Batch the Change is refused,
+naming the branch and the file, reads keep working, and the Server must not die on that conflict at startup either.
+
 ## MCP facts observed on Pomerium v0.34.0
 
 - An unauthenticated `POST /mcp` answers `401` with `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"`.

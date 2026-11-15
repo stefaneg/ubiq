@@ -3,6 +3,9 @@
 // Person from the proxy's assertion JWT. Read-only. No tests, no polish, not for main.
 //
 //	ubiq serve [-root dir] [-listen 127.0.0.1:8766] [-jwks url] [-ca dev/certs/ca.pem]
+//	           [-origin url] [-default main] [-committer "ubiq serve <ubiq@localhost>"]
+//
+// With -origin the Server owns a clone at -root, reads from the open Batch and offers define_term (proto_write.go).
 package main
 
 import (
@@ -42,6 +45,9 @@ func runServe(args []string, status io.Writer) error {
 	jwks := fs.String("jwks", "https://authenticate.localhost.pomerium.io/.well-known/pomerium/jwks.json",
 		"Pomerium's assertion signing keys")
 	ca := fs.String("ca", "dev/certs/ca.pem", "extra CA to trust when fetching the keys; empty for system roots only")
+	origin := fs.String("origin", "", "git remote the Server clones into -root and pushes Batches to; empty for read-only")
+	defBranch := fs.String("default", "main", "the default branch Batches start from and merge")
+	committer := fs.String("committer", "ubiq serve <ubiq@localhost>", "the Server's own git identity, the committer of every Change")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -55,8 +61,24 @@ func runServe(args []string, status io.Writer) error {
 	}
 	who := func(ctx context.Context, h http.Header) (*person, error) { return personFrom(ctx, verifier, h) }
 
+	var repo *batchRepo
+	if *origin != "" {
+		repo = &batchRepo{dir: abs, origin: *origin, defaultBranch: *defBranch, prefix: "ubiq/", committer: *committer, status: status}
+		if err := repo.ensureClone(); err != nil {
+			return err
+		}
+		// A conflict at startup must not stop reads: the clone still holds a Batch to serve. Writes refuse until a
+		// Maintainer resolves it.
+		if batch, err := repo.prepare(); err != nil {
+			fmt.Fprintf(status, "startup: %v\n", err)
+		} else {
+			fmt.Fprintf(status, "reading from Batch %s of %s\n", batch, *origin)
+		}
+	}
+
 	srv := mcpserver.New(abs, version())
 	srv.AddReceivingMiddleware(logMCP(status, who))
+	addDefineTerm(srv, repo, who)
 	mcp.AddTool(srv, &mcp.Tool{Name: "whoami", Description: "Who the server believes is calling, from the proxy's assertion."},
 		func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 			p, err := who(ctx, req.Extra.Header)
