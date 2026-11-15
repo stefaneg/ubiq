@@ -1,7 +1,8 @@
 # ubiq
 
-ubiq reads the **Domain Model** a repository keeps as Markdown, renders it as one page, and reports where its language
-is unclear or broken. Served, it also lets a **Person**'s **Agent** make **Changes** to it.
+ubiq reads the **Domain Model** a repository keeps as Markdown, renders it as one page, answers a **Lookup** for any
+word, and reports where its language is unclear or broken. Served, it also lets a **Person**'s **Agent** make
+**Changes** to it.
 
 ## Language
 
@@ -52,7 +53,12 @@ A mention of a **Term** by its exact name, in bold or capitalised, in another **
 **Context Relationship**.
 _Avoid_: link
 
-### Checks
+### Tools
+
+**Lookup**:
+The answer for one word: the **Term** it names, the **Terms** that avoid it, or failing both, the **Terms** that
+mention it.
+_Avoid_: search, find, query
 
 **Vocabulary Check**:
 A comparison of a text with the **Terms** of a **Domain Model**, which lists the **Terms** the text uses and its
@@ -110,12 +116,14 @@ The external OpenID Connect provider a **Deployment** trusts to say who a person
 _Avoid_: IdP, SSO, login provider
 
 **Person**:
-A human the **Identity Provider** has identified. Everything a **Server** does, it does for a Person.
+A human ubiq acts for: through a **Server**, one the **Identity Provider** has identified; otherwise, whoever holds
+the working tree. Everything a **Server** does, it does for a Person.
 _Avoid_: user, account, principal
 
 **Agent**:
-An MCP client acting for a **Person**.
-_Avoid_: client, tool, bot
+An MCP client acting for a **Person**: it asks for a **Lookup**, a **Vocabulary Check** or a **Health Check**, and
+makes **Changes** for a **Writer**.
+_Avoid_: client, bot
 
 **Reader**:
 A **Person** the **Identity Provider** admits, who may read the **Domain Model** through the **Server**.
@@ -142,5 +150,6 @@ branch.
 _Avoid_: round, change set, pending changes
 
 **Maintainer**:
-A **Person** who merges a **Batch** into the default branch. The repository, not ubiq, decides who that is.
+A **Person** who commits to the default branch directly, and so is the one who merges each **Batch** into it. The
+repository, not ubiq, decides who that is.
 _Avoid_: admin, owner, reviewer
