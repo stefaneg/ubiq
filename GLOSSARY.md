@@ -1,7 +1,7 @@
 # ubiq
 
 ubiq reads the **Domain Model** a repository keeps as Markdown, renders it as one page, and reports where its language
-is unclear or broken.
+is unclear or broken. Served, it also lets a **Person**'s **Agent** make **Changes** to it.
 
 ## Language
 
@@ -93,20 +93,15 @@ _Avoid_: duplicate term
 A bold phrase that names no **Term**, or a **Context Relationship** label that names no **Context**.
 _Avoid_: broken link, dangling reference
 
-### Changes
+### Serving
 
-**Change**:
-One accepted write to the **Domain Model** that an **Agent** makes for a **Person**, recorded as one commit.
-_Avoid_: edit, write, revision, update
+**Server**:
+The long-running ubiq process that serves the page and the MCP tools for one repository.
+_Avoid_: served ubiq, service, web server, daemon
 
-**Batch**:
-The sequence of **Changes** gathered on one numbered branch, awaiting a **Maintainer**'s merge into the default
-branch.
-_Avoid_: round, change set, pending changes
-
-**Maintainer**:
-A **Person** who merges a **Batch** into the default branch. The repository, not ubiq, decides who that is.
-_Avoid_: admin, owner, reviewer
+**Deployment**:
+One **Server**, the **Identity Provider** it trusts, and the repository it serves.
+_Avoid_: instance, installation, environment
 
 ### People
 
@@ -135,12 +130,17 @@ _Avoid_: editor, contributor, author
 The claim name and accepted values a **Deployment** configures to tell a **Writer** from a **Reader**.
 _Avoid_: allowlist, ACL, permission, role mapping
 
-### Serving
+### Changes
 
-**Server**:
-The long-running ubiq process that serves the page and the MCP tools for one repository.
-_Avoid_: served ubiq, service, web server, daemon
+**Change**:
+One accepted write to the **Domain Model** that an **Agent** makes for a **Person**, recorded as one commit.
+_Avoid_: edit, write, revision, update
 
-**Deployment**:
-One **Server** with its proxy, the **Identity Provider** it trusts, and the repository it serves.
-_Avoid_: instance, installation, environment
+**Batch**:
+The sequence of **Changes** gathered on one numbered branch, awaiting a **Maintainer**'s merge into the default
+branch.
+_Avoid_: round, change set, pending changes
+
+**Maintainer**:
+A **Person** who merges a **Batch** into the default branch. The repository, not ubiq, decides who that is.
+_Avoid_: admin, owner, reviewer
