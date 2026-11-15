@@ -23,7 +23,10 @@ func TestSentencesIgnoresAbbreviationsAndTrailingSpace(t *testing.T) {
 func TestCheckAppliesThePageRulesAndSortsByFileAndLine(t *testing.T) {
 	findings := Check(glossarytest.Load(t))
 	assert.Equal(t, []Finding{
+		{Path: "GLOSSARY-MAP.md", Rule: "unresolved", Name: "Spectre", Note: "Workspace: Cross-context vocabulary › Deliberate mirrors › Run"},
+		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Ghost", Note: "Common: Relationships"},
 		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Label", Note: "Common: Repository"},
+		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Phantom", Note: "Common: Flagged ambiguities"},
 		{Path: "GLOSSARY.md", Line: 15, Rule: "long", Name: "Tag", Note: "3 sentences", Term: "common/tag"},
 		{Path: "GLOSSARY.md", Line: 25, Rule: "unmapped", Name: "Run", Note: "also in Workspace", Term: "common/run"},
 		{Path: "internal/workspace/GLOSSARY.md", Line: 17, Rule: "unmapped", Name: "Run", Note: "also in Common", Term: "workspace/run"},
@@ -35,7 +38,7 @@ func TestCheckReportsAnOrphanThatOnlyAnADRMentions(t *testing.T) {
 	for id := range model.Terms {
 		model.Terms[id].Refs = nil
 	}
-	model.Relationships = nil
+	model.Statements = nil
 	var orphans []string
 	for _, f := range Check(model) {
 		if f.Rule == "orphan" {
@@ -92,6 +95,22 @@ func TestCheckReportsANameTwoContextsDefineThatNoRelationshipBetweenThemMentions
 	assert.Len(t, unmapped("- **Ordering → Billing**: orders become invoices.\n"), 2, "the relationship does not mention Customer")
 	assert.Len(t, unmapped("- **Shipping → Billing**: a Customer pays for a parcel.\n"), 2, "the relationship is not between Ordering and Billing")
 	assert.Empty(t, unmapped("- **Ordering → Billing**: the Ordering Customer becomes the Billing Customer.\n"))
+	assert.Empty(t, unmapped("\n## Cross-context vocabulary\n\n#### Customer\n\n- Ordering: a buyer.\n- Billing: a payer.\n"),
+		"the Statements under one heading together mention the name and name both Contexts")
+	assert.Len(t, unmapped("\n#### Customer\n\n- Ordering: a buyer.\n\n#### Invoice\n\n- Billing: a Customer pays.\n"), 2,
+		"each heading names only one of the Contexts")
+}
+
+func TestCheckCountsAnyMentionInAStatementAsAReference(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{
+		"GLOSSARY.md": "# Ordering\n\n## Language\n\n**Order**:\nA request.\n\n**Customer**:\nA buyer.\n\n## Notes\n\n- Each **Order** is final.\n",
+	})
+	model, err := glossary.Load(root)
+	require.NoError(t, err)
+	assert.Equal(t, []Finding{
+		{Path: "GLOSSARY.md", Line: 8, Rule: "orphan", Name: "Customer", Note: "no references in or out", Term: "ordering/customer"},
+	}, Check(model), "a Statement that mentions Order alone still refers to it")
 }
 
 func TestCheckReportsARelationshipLabelNamingNoContext(t *testing.T) {
@@ -102,5 +121,5 @@ func TestCheckReportsARelationshipLabelNamingNoContext(t *testing.T) {
 	})
 	model, err := glossary.Load(root)
 	require.NoError(t, err)
-	assert.Contains(t, Check(model), Finding{Path: "GLOSSARY-MAP.md", Rule: "unresolved", Name: "Integrations", Note: "relationship Integrations → Ordering"})
+	assert.Contains(t, Check(model), Finding{Path: "GLOSSARY-MAP.md", Rule: "unresolved", Name: "Integrations", Note: "Relationships"})
 }

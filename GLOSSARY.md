@@ -1,8 +1,8 @@
 # ubiq
 
-ubiq reads the **Domain Model** a repository keeps as Markdown, renders it as one page, answers a **Lookup** for any
-word, and reports where its language is unclear or broken. Served, it also lets a **Person**'s **Agent** make
-**Changes** to it.
+ubiq reads the **Domain Model** a repository keeps as Markdown, renders it as one page, answers what its words mean,
+and reports where its language is unclear or broken. Served, it also lets a **Person**'s **Agent** make **Changes** to
+it.
 
 ## Language
 
@@ -22,12 +22,11 @@ grouped into **Clusters**.
 _Avoid_: dictionary, vocabulary file
 
 **Context Map**:
-The document that lists a repository's **Contexts**, where each one's **Glossary** lives, and each
-**Context Relationship**.
+The document that lists a repository's **Contexts** and where each one's **Glossary** lives.
 _Avoid_: glossary map, index
 
 **Context Relationship**:
-A statement in the **Context Map** of how two **Contexts** relate.
+A **Statement** that names two or more **Contexts**.
 _Avoid_: integration, dependency
 
 **ADR**:
@@ -48,21 +47,30 @@ _Avoid_: synonym, alias, redirect
 A named group of **Terms** under one subheading of a **Glossary**.
 _Avoid_: group, section, category
 
+**Statement**:
+A paragraph, bullet, table row or quote of a **Glossary** or the **Context Map** that defines no **Term**, labelled by
+the headings above it.
+_Avoid_: passage
+
 **Reference**:
 A mention of a **Term** by its exact name, in bold or capitalised, in another **Term**'s definition or in a
-**Context Relationship**.
+**Statement**.
 _Avoid_: link
+
+**Co-mention**:
+Two **Terms** that one **Statement** mentions, or that it and the heading just above it mention.
+_Avoid_: association, related term
 
 ### Tools
 
 **Lookup**:
-The answer for one word: the **Term** it names, the **Terms** that avoid it, or failing both, the **Terms** that
-mention it.
-_Avoid_: search, find, query
+A search of a **Domain Model** for the **Terms** a word names or avoids, else for those the parts of a compound word
+name or avoid, else for the **Terms** that mention it.
+_Avoid_: search, query, find
 
 **Vocabulary Check**:
-A comparison of a text with the **Terms** of a **Domain Model**, which lists the **Terms** the text uses and its
-**Candidate Phrases**.
+A comparison of a text with the **Terms** of a **Domain Model**, which lists the **Terms** and **Avoided Words** the
+text uses, and its **Candidate Phrases**.
 _Avoid_: check, lint, spellcheck
 
 **Candidate Phrase**:
@@ -91,12 +99,13 @@ A **Term** that has no **Reference**.
 _Avoid_: unused term, dead term
 
 **Unmapped Name**:
-A name that two **Contexts** both define as a **Term** and that no **Context Relationship** between them
-mentions.
+A name that two **Contexts** both define as a **Term**, where no heading has **Statements** under it that mention
+the name and name both **Contexts**.
 _Avoid_: duplicate term
 
 **Unresolved Phrase**:
-A bold phrase that names no **Term**, or a **Context Relationship** label that names no **Context**.
+A bold phrase that names neither a **Term** nor a **Context**, or a name in a bold label such as "Ordering →
+Billing" that names no **Context**.
 _Avoid_: broken link, dangling reference
 
 ### Serving
@@ -153,3 +162,12 @@ _Avoid_: round, change set, pending changes
 A **Person** who commits to the default branch directly, and so is the one who merges each **Batch** into it. The
 repository, not ubiq, decides who that is.
 _Avoid_: admin, owner, reviewer
+
+## Relationships
+
+- A **Lookup** of a **Term** gives its **References** both ways, its **Co-mentions**, and the **Statements** that
+  mention it.
+- The **Statements** under one heading that mention a name and name both **Contexts** that define it, typically
+  **Context Relationships**, keep it from being an **Unmapped Name**.
+- A **Server** reads and changes the open **Batch**, so a **Lookup** through it sees every **Change** before a
+  **Maintainer** has merged it.
