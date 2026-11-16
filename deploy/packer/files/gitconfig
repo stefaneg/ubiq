@@ -1,0 +1,3 @@
+# The ubiq service user's git: the push credential is the one line first boot writes to ~/.git-credentials.
+[credential]
+	helper = store
