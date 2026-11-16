@@ -171,7 +171,7 @@ const avoidLine = t => t.avoid ? `<div class="avoid"><b>Avoid:</b> ${esc(t.avoid
 const ctxChip = id => chip(ctxCls(T[id].context), CTX_NAME[T[id].context]);
 function badges(id, withCtx = true) {
   const t = T[id]; let s = '';
-  if (withCtx) s += chip(ctxCls(t.context), CTX_NAME[t.context], t.cluster);
+  if (withCtx) s += chip(ctxCls(t.context), CTX_NAME[t.context], t.cluster || 'General');
   const sw = sameWord(id);
   if (sw.length) s += chip('also', 'also in ' + sw.map(x => CTX_NAME[T[x].context]).join(', '), 'A term of the same name is defined in another context');
   return s;
@@ -252,7 +252,7 @@ function healthBlock(id) {
 }
 function termCard(id) {
   const t = T[id];
-  return `<div class="card"><h2>${esc(t.name)}${badges(id)}</h2><div class="muted small">${esc(t.cluster)} · line ${t.line} of ${esc(DATA.contexts.find(c => c.key === t.context).path)}</div>
+  return `<div class="card"><h2>${esc(t.name)}${badges(id)}</h2><div class="muted small">${esc(t.cluster || 'General')} · line ${t.line} of ${esc(DATA.contexts.find(c => c.key === t.context).path)}</div>
     <div class="def">${t.definition}</div>${avoidLine(t)}
     ${sameWordBlock(id)}
     <div class="graph">${neighbourhood(id)}</div>

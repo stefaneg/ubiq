@@ -88,6 +88,25 @@ The images waiting to be pushed.
 	assert.True(t, strings.HasPrefix(text, "Upload Queue (Stacks), internal/stacks/GLOSSARY.md:5\n"), text)
 }
 
+func TestTheLookupHeaderShowsAClusterHeadingNamedGeneral(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Shop
+
+## Language
+
+**Order**:
+A request for goods.
+
+### General
+
+**Customer**:
+A person who places an **Order**.
+`})
+	text, _ := call(t, connect(t, root), "lookup", map[string]any{"words": []string{"Order", "Customer"}})
+	assert.True(t, strings.HasPrefix(text, "Order (Shop), GLOSSARY.md:5\n"), text)
+	assert.Contains(t, text, "\nCustomer (Shop › General), GLOSSARY.md:10\n")
+}
+
 func TestAGlossaryThatCannotBeReadIsAToolError(t *testing.T) {
 	cs := connect(t, t.TempDir())
 	text, isErr := call(t, cs, "check", map[string]any{"text": "anything"})

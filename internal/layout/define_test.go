@@ -297,9 +297,9 @@ func TestDefineRoundTripsThroughTheParserWithTheTermInItsCluster(t *testing.T) {
 		{"no Cluster named takes the last Term's", shop, "", "Billing"},
 		{"a known Cluster", shop, "Ordering", "Ordering"},
 		{"an unknown Cluster", shop, "Shipping", "Shipping"},
-		{"no Terms yet", empty, "", "General"},
+		{"no Terms yet", empty, "", ""},
 		{"no Terms yet, an unknown Cluster", empty, "Shipping", "Shipping"},
-		{"Terms under Language only", flat, "", "General"},
+		{"Terms under Language only", flat, "", ""},
 		{"Terms under Language only, an unknown Cluster", flat, "Shipping", "Shipping"},
 	}
 	for _, c := range cases {

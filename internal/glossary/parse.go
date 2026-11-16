@@ -76,7 +76,7 @@ type heading struct {
 
 // parseContext reads one glossary file: a "#" heading naming the context, an intro before the first "##" heading,
 // and Term entries under any heading. A Term's Cluster is the nearest heading above it, skipping one named Language,
-// or General without one; the text between that heading and the Cluster's first Term is the Cluster's intro. Fenced
+// or none without one; the text between that heading and the Cluster's first Term is the Cluster's intro. Fenced
 // code is skipped. displayPath is the path shown to readers; path is where it is read from. The caller sets the key.
 func parseContext(displayPath, path string) (*rawContext, error) {
 	lines, err := readLines(path)
@@ -282,17 +282,17 @@ func push(stack []heading, h heading) []heading {
 	return append(stack, h)
 }
 
-// General is the Cluster of a Term under no heading but the title and Language.
+// General is how the Terms under no Cluster heading are grouped for display; their Term.Cluster is empty.
 const General = "General"
 
-// clusterName is the nearest open heading not named Language, or General.
+// clusterName is the nearest open heading not named Language, or empty when the Term sits under no Cluster heading.
 func clusterName(stack []heading) string {
 	for i := len(stack) - 1; i >= 0; i-- {
 		if !isLanguage(stack[i].text) {
 			return stack[i].text
 		}
 	}
-	return General
+	return ""
 }
 
 func isLanguage(heading string) bool { return strings.EqualFold(heading, "Language") }

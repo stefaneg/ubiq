@@ -63,7 +63,7 @@ func (l *Lookup) WriteTerm(w io.Writer, id string) {
 func (l *Lookup) writeTerm(w io.Writer, t *glossary.Term) {
 	m := l.model
 	where := m.ContextName(t.Context)
-	if t.Cluster != glossary.General {
+	if t.Cluster != "" {
 		where += " › " + t.Cluster
 	}
 	fmt.Fprintf(w, "%s (%s), %s:%d\n", t.Name, where, l.contextPath(t.Context), t.Line)

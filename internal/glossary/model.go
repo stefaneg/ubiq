@@ -29,7 +29,7 @@ type Term struct {
 	ID         string   `json:"id"`
 	Name       string   `json:"name"`
 	Context    string   `json:"context"`
-	Cluster    string   `json:"cluster"`
+	Cluster    string   `json:"cluster"`    // the heading the Term sits under, empty under none
 	Definition string   `json:"definition"` // html with resolved term links
 	Avoid      string   `json:"avoid"`      // the Avoid line as written
 	Redirects  []string `json:"redirects"`  // avoided words that name a synonym, see Term.redirects

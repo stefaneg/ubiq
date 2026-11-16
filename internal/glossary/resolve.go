@@ -383,7 +383,11 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: r.renderIntro(rc.intro, rc.key)}
 		for _, cname := range rc.clusterOrder {
 			cl := rc.clusters[cname]
-			cc := Cluster{Key: slug(cname), Name: cname, Intro: r.renderIntro(cl.intro, rc.key)}
+			shown := cname
+			if shown == "" {
+				shown = General
+			}
+			cc := Cluster{Key: slug(shown), Name: shown, Intro: r.renderIntro(cl.intro, rc.key)}
 			for _, t := range cl.terms {
 				id := rc.key + "/" + slug(t.name)
 				term := m.Terms[id]
