@@ -88,7 +88,9 @@ machine will find differences. The MCP server's instructions therefore say which
 write result names the Batch it landed in.
 
 Every call reads the Domain Model afresh from the clone; nothing is cached
-([ADR 0003](adr/0003-read-the-domain-model-on-every-call.md)).
+([ADR 0003](adr/0003-read-the-domain-model-on-every-call.md)). Reads share one lock with Changes and the periodic
+fetch: a read waits while either is under way, so it never sees a merge in conflict, a Change not yet pushed, or a
+checkout half switched. Reads do not wait for one another.
 
 **The page** at `/` is the `ubiq html` page, Health Check included, with the Person's name and role at the top. No
 separate routes.

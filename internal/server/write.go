@@ -89,18 +89,22 @@ func (in reviseInput) term() layout.Term {
 	return layout.Term{Name: in.Name, Definition: in.Definition, Avoid: in.Avoid, Cluster: in.Cluster}
 }
 
-// addWriteTools adds the four write tools to s. They are listed for every Person; a Reader's call is refused.
-func (o Options) addWriteTools(s *mcp.Server) {
+// addWriteTools adds the four write tools to s and answers their names. They are listed for every Person; a Reader's
+// call is refused.
+func (o Options) addWriteTools(s *mcp.Server) map[string]bool {
 	write := &mcp.ToolAnnotations{DestructiveHint: new(bool), OpenWorldHint: new(bool)}
 	destructive := &mcp.ToolAnnotations{OpenWorldHint: new(bool)}
-	addWriteTool(o, s, &mcp.Tool{Name: "define_term", Description: defineDescription, Annotations: write}, o.define)
-	addWriteTool(o, s, &mcp.Tool{Name: "revise_term", Description: reviseDescription, Annotations: destructive}, o.revise)
-	addWriteTool(o, s, &mcp.Tool{Name: "remove_term", Description: removeDescription, Annotations: destructive}, o.remove)
-	addWriteTool(o, s, &mcp.Tool{Name: "record_adr", Description: recordDescription, Annotations: write}, o.record)
+	return map[string]bool{
+		addWriteTool(o, s, &mcp.Tool{Name: "define_term", Description: defineDescription, Annotations: write}, o.define):       true,
+		addWriteTool(o, s, &mcp.Tool{Name: "revise_term", Description: reviseDescription, Annotations: destructive}, o.revise): true,
+		addWriteTool(o, s, &mcp.Tool{Name: "remove_term", Description: removeDescription, Annotations: destructive}, o.remove): true,
+		addWriteTool(o, s, &mcp.Tool{Name: "record_adr", Description: recordDescription, Annotations: write}, o.record):        true,
+	}
 }
 
-// addWriteTool adds tool to s, answering a Writer's call with what run answers and refusing anyone else's.
-func addWriteTool[In any](o Options, s *mcp.Server, tool *mcp.Tool, run func(person.Person, In) (string, error)) {
+// addWriteTool adds tool to s, answering a Writer's call with what run answers and refusing anyone else's, and
+// answers the tool's name.
+func addWriteTool[In any](o Options, s *mcp.Server, tool *mcp.Tool, run func(person.Person, In) (string, error)) string {
 	mcp.AddTool(s, tool, func(_ context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
 		p, err := o.writer(req)
 		if err != nil {
@@ -112,6 +116,7 @@ func addWriteTool[In any](o Options, s *mcp.Server, tool *mcp.Tool, run func(per
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
 	})
+	return tool.Name
 }
 
 // writer is the Person calling, refused unless a Writer.

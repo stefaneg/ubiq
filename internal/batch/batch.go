@@ -1,6 +1,6 @@
 // Package batch is the Batch repository: the clone of origin the Server owns, and the open Batch every Change lands
-// in. It shells out to the host's git, treats the clone as a cache of origin, and serialises Changes with one lock;
-// see docs/server.md and docs/adr/0005-changes-land-in-a-numbered-batch-branch.md.
+// in. It shells out to the host's git, treats the clone as a cache of origin, and serialises Changes with one lock
+// that reads share; see docs/server.md and docs/adr/0005-changes-land-in-a-numbered-batch-branch.md.
 package batch
 
 import (
@@ -35,8 +35,8 @@ type Repository struct {
 
 	log io.Writer
 
-	mu      sync.Mutex // one Change or Refresh at a time
-	failing string     // why the open Batch last could not be prepared, empty when it could
+	mu      sync.RWMutex // one Change or Refresh at a time, and no read during one
+	failing string       // why the open Batch last could not be prepared, empty when it could
 }
 
 // Commit is what one Change commits: its subject and the files, relative to the root, it changed.
@@ -87,6 +87,14 @@ func (r *Repository) Refresh() {
 	defer r.mu.Unlock()
 	_, err := r.prepare()
 	r.note(err)
+}
+
+// Reading holds off every Change and Refresh until release is called, so that a read of the clone sees the open
+// Batch whole: never a merge in conflict, a file a Change has written but not committed or pushed, or a checkout half
+// switched.
+func (r *Repository) Reading() (release func()) {
+	r.mu.RLock()
+	return r.mu.RUnlock
 }
 
 // note logs why the open Batch could not be prepared, unless it logged the same reason last time.
