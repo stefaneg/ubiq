@@ -221,9 +221,9 @@ are those of the stack in [dev](../dev).
 | `shared_secret`, `cookie_secret` | Pomerium's own; generated at first boot in production. | Fixed in the dev file, never reused. |
 | `databroker_storage_type`, `databroker_storage_connection_string` | Sessions and registered clients; a file on the instance, lost when it is replaced. | `file`, under the container's data directory. |
 | `idp_provider: oidc`, `idp_provider_url`, `idp_client_id`, `idp_client_secret` | The Identity Provider by discovery. | Keycloak realm `ubiq`; Google in the test Deployment. |
-| Route `ubiq.<domain>` → the Server, `pass_identity_headers: true` | The page; the assertion must reach the Server. | `http://host.docker.internal:8766` |
+| Route `ubiq.<domain>` → the Server, `pass_identity_headers: true` | The page; the assertion must reach the Server. | `http://ubiq:8766`, the Server's container |
 | Route `mcp.<domain>` → the Server, `pass_identity_headers: true`, `mcp: server` | The MCP endpoint; `mcp: server` makes the route an OAuth 2.1 protected resource with Pomerium as its authorization server. Bearer tokens only; a browser cookie does not open it. | the same upstream |
-| Policy on both routes: `authenticated_user: true` | A Reader is anyone the Identity Provider admits; the Writer Rule does the rest. | Replaces the dev stack's narrower `domain: is: ubiq.test`. |
+| Policy on both routes: `authenticated_user: true` | A Reader is anyone the Identity Provider admits; the Writer Rule does the rest. | The same. |
 | `mcp_allowed_client_id_domains` | Clients registering by a client ID metadata document must come from a listed host. | `[claude.ai]` |
 | Runtime flag `mcp_dynamic_client_registration` | For clients without a metadata document; off by default, and the metadata then shows no registration endpoint. | `true` |
 
@@ -288,10 +288,11 @@ this scope, and SSM Parameter Store is the hardening step.
 
 ## Development
 
-The stack in [dev](../dev) runs Pomerium and Keycloak under Docker Compose with everything on loopback, two test
-people (`writer` in group `ubiq-writers`, `reader` in none), curl scripts that play a browser and an MCP client, and a
-README of facts observed. It was built around the prototype; implementation makes it match this document: the Server's
-`-jwks` becomes `-assertion-keys`, `-default` goes, and the routes' admission becomes `authenticated_user: true`.
+The stack in [dev](../dev) runs Pomerium, Keycloak and the Server under Docker Compose with everything on loopback,
+two test people (`writer` in group `ubiq-writers`, `reader` in none), curl scripts that play a browser and an MCP
+client, and a README of facts observed. The Server there takes the flags above and the routes admit
+`authenticated_user: true`, as in a Deployment; it listens inside its container rather than on loopback, and its
+origin is a local bare repository seeded from the developer's checkout.
 
 ## Decisions
 

@@ -1,0 +1,62 @@
+{
+  "realm": "ubiq",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "groups": [
+    { "name": "ubiq-writers", "path": "/ubiq-writers" }
+  ],
+  "users": [
+    {
+      "username": "writer",
+      "enabled": true,
+      "email": "writer@ubiq.test",
+      "emailVerified": true,
+      "firstName": "Wren",
+      "lastName": "Writer",
+      "credentials": [{ "type": "password", "value": "writer", "temporary": false }],
+      "realmRoles": ["offline_access"],
+      "groups": ["/ubiq-writers"]
+    },
+    {
+      "username": "reader",
+      "enabled": true,
+      "email": "reader@ubiq.test",
+      "emailVerified": true,
+      "firstName": "Rae",
+      "lastName": "Reader",
+      "credentials": [{ "type": "password", "value": "reader", "temporary": false }],
+      "realmRoles": ["offline_access"],
+      "groups": []
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "pomerium",
+      "name": "Pomerium",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "cb4f643442f24e06296c8807aa5c7ef2",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["https://authenticate.localhost.pomerium.io/oauth2/callback"],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}
