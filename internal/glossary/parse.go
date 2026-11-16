@@ -282,6 +282,9 @@ func push(stack []heading, h heading) []heading {
 	return append(stack, h)
 }
 
+// General is the Cluster of a Term under no heading but the title and Language.
+const General = "General"
+
 // clusterName is the nearest open heading not named Language, or General.
 func clusterName(stack []heading) string {
 	for i := len(stack) - 1; i >= 0; i-- {
@@ -289,7 +292,7 @@ func clusterName(stack []heading) string {
 			return stack[i].text
 		}
 	}
-	return "General"
+	return General
 }
 
 func isLanguage(heading string) bool { return strings.EqualFold(heading, "Language") }

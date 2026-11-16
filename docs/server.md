@@ -97,7 +97,7 @@ separate routes.
 
 | Tool | Input | Answer |
 |---|---|---|
-| `lookup` | `words`, a list | For each word, what `ubiq lookup` prints. The Term header line is `Name (Context / Cluster), path:line`; the Cluster is left out when the Term sits under none. |
+| `lookup` | `words`, a list | For each word, what `ubiq lookup` prints. The Term header line is `Name (Context › Cluster), path:line`; the Cluster is left out when the Term sits under none. |
 | `check` | `text` | What `ubiq check` prints: the Terms and Avoided Words the text uses and its Candidate Phrases. |
 | `health` | none | The whole Health Check as `ubiq health` prints it, one `path:line: rule: name: note` line per Finding and the summary line. |
 | `whoami` | none | On the Server: the Person's name, email and role, Reader or Writer, nothing about claims or the proxy. In stdio: the git identity of the working tree (`user.name`, `user.email`, or "unset") with role Maintainer. |
