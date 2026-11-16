@@ -169,7 +169,8 @@ half minute. Then:
   hand does, it is reset to the default branch and reused rather than merged with it. One with commits of its own but
   no Change keeps them and has the default branch merged in, so no one's commit is lost.
 - Otherwise the Change is committed on the Batch and pushed straight after. A push rejected because the branch moved
-  is retried after a fetch.
+  is retried after a fetch. When origin refuses the retry too, the Change is refused, the reason is logged, and the
+  clone drops the commit, so reads never show a Change origin does not have.
 
 A Maintainer merges each Batch into the default branch by hand, opening a pull request or merge request if the
 repository wants one. The Server never calls a forge API, so a protected default branch is no concern of its. Against

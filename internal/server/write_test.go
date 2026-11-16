@@ -174,6 +174,24 @@ func TestAPushRejectedBecauseOriginMovedIsRetriedAfterAFetch(t *testing.T) {
 		glossarytest.Git(t, "", "--git-dir", origin, "log", "--format=%s", "ubiq/1"))
 }
 
+func TestAPushRejectedTwiceIsRefusedAndReadsNeverShowTheChange(t *testing.T) {
+	origin := glossarytest.Origin(t, glossarytest.Root(t))
+	url, root, log := serveOrigin(t, origin, ada)
+	glossarytest.WriteTree(t, root, map[string]string{".git/hooks/pre-push": "#!/bin/sh\necho 'origin is read-only' >&2\nexit 1\n"})
+	require.NoError(t, os.Chmod(filepath.Join(root, ".git/hooks/pre-push"), 0o755))
+	cs := connect(t, url)
+
+	text, isErr := call(t, cs, "define_term", map[string]any{"context": "Common", "name": "Digest", "definition": "A content hash."})
+	assert.True(t, isErr)
+	assert.Equal(t, "Origin refused the push to the Batch ubiq/1 twice, so the Change did not land.", text)
+	assert.Contains(t, log.String(), "origin is read-only", "the reason is logged for a Maintainer")
+	text, isErr = call(t, cs, "lookup", map[string]any{"words": []string{"Digest"}})
+	assert.False(t, isErr)
+	assert.NotContains(t, text, "A content hash.")
+	_, page := get(t, url)
+	assert.NotContains(t, page, "A content hash.")
+}
+
 func TestTwoConcurrentDefinesBothLand(t *testing.T) {
 	origin := glossarytest.Origin(t, glossarytest.Root(t))
 	url, _, _ := serveOrigin(t, origin, ada)

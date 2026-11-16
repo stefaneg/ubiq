@@ -104,7 +104,9 @@ func (r *Repository) note(err error) {
 // Change lands one Change in the open Batch: it fetches origin and checks the open Batch out with the default branch
 // merged in, runs apply on the clone, and commits what apply changed, authored by author and committed by the Server,
 // then pushes. When origin refuses the push because the Batch moved, it fetches and runs apply once more on the
-// Batch as it now is. When apply fails, nothing lands and the clone is left as the Batch.
+// Batch as it now is; when origin refuses that push too, the Change is refused and git's reason logged. When apply
+// fails or the push is refused, nothing lands and the clone is left as the Batch on origin, so reads never show a
+// Change origin does not have.
 func (r *Repository) Change(author Identity, apply func() (Commit, error)) (Landed, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -113,11 +115,18 @@ func (r *Repository) Change(author Identity, apply func() (Commit, error)) (Land
 	if errors.As(err, &rejected) {
 		landed, err = r.land(author, apply)
 	}
+	if errors.As(err, &rejected) {
+		fmt.Fprintf(r.log, "push a Change to the Batch %s: %s\n", rejected.batch, rejected.err)
+		return Landed{}, fmt.Errorf("Origin refused the push to the Batch %s twice, so the Change did not land.", rejected.batch)
+	}
 	return landed, err
 }
 
-// rejectedPush is origin refusing a Change's push.
-type rejectedPush struct{ err error }
+// rejectedPush is origin refusing a Change's push to batch.
+type rejectedPush struct {
+	batch string
+	err   error
+}
 
 func (e *rejectedPush) Error() string { return e.err.Error() }
 
@@ -139,7 +148,8 @@ func (r *Repository) land(author Identity, apply func() (Commit, error)) (Landed
 		return Landed{}, err
 	}
 	if _, err := r.git(nil, "push", "--quiet", "origin", "HEAD:refs/heads/"+batch); err != nil {
-		return Landed{}, &rejectedPush{err}
+		_, _ = r.git(nil, "reset", "--quiet", "--hard", "HEAD^")
+		return Landed{}, &rejectedPush{batch: batch, err: err}
 	}
 	return Landed{Batch: batch, Commit: commit}, nil
 }
