@@ -10,5 +10,4 @@ FROM alpine:3.24
 # The Server runs the host's git; the origin and clone are bind mounts and volumes owned by whoever made them.
 RUN apk add --no-cache git && git config --system safe.directory '*'
 COPY --from=build /ubiq /usr/local/bin/ubiq
-COPY dev/ubiq/entrypoint.sh /usr/local/bin/entrypoint.sh
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["ubiq"]

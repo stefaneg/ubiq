@@ -155,19 +155,21 @@ ubiq serve -root /var/lib/ubiq/repo -origin https://github.com/example/handbook.
 `serve` runs the Server: one long-running process for one repository, behind an identity-aware proxy, that serves
 the page `ubiq html` renders at `/`, with the Person's name and role at the top, and the four tools of `ubiq mcp` over
 the MCP streamable transport at `/mcp`. Every request is on behalf of a Person the proxy vouches for; a request with
-none is answered `401`. The server's instructions name the branch it reads, and it logs one line per request to
-stderr. The design is [docs/server.md](docs/server.md).
+none is answered `401`. A Writer's Agent may also call `define_term`: the Term lands at once as a commit authored by
+the Person in the open Batch, a `ubiq/<n>` branch on origin that a Maintainer merges by hand. The Server clones
+origin into `-root` on first start and reuses the clone after; it reads the open Batch, and its instructions name
+the branch. It logs one line per request and per Change to stderr. The design is [docs/server.md](docs/server.md).
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `-root <dir>` | `.` | The clone the Server owns. |
+| `-root <dir>` | `.` | The clone the Server owns: cloned from `-origin` when it holds no `.git`, reused otherwise. |
 | `-origin <url>` | required | The repository, by HTTPS; SSH is refused. A local path is accepted for development. |
 | `-listen <addr>` | `127.0.0.1:8766` | Loopback; the proxy sits in front. |
 | `-assertion-keys <url>` | required unless `-person` | Where the proxy publishes the keys that sign its assertion. |
 | `-ca <file>` | system roots | Extra CA to trust when fetching the keys. |
 | `-writer-claim <name>` | `groups` | The Writer Rule's claim. |
 | `-writers <v,v,...>` | required | The Writer Rule's accepted values. |
-| `-committer "Name <email>"` | `ubiq serve <ubiq@localhost>` | The Server's git identity. |
+| `-committer "Name <email>"` | `ubiq serve <ubiq@localhost>` | The Server's git identity, committer of every Change. |
 | `-person "Name <email>"` | off | Dev direct mode: every request is this Person, a Writer, with no proxy; loopback only. |
 
 It refuses to start when `-writers` is missing, when it has neither or both of `-assertion-keys` and `-person`, when
@@ -175,7 +177,7 @@ It refuses to start when `-writers` is missing, when it has neither or both of `
 HTTPS. To try it alone:
 
 ```sh
-ubiq serve -origin /path/to/handbook.git -writers dev -person "Ada Lovelace <ada@example.com>"
+ubiq serve -root /tmp/handbook -origin /path/to/handbook.git -writers dev -person "Ada Lovelace <ada@example.com>"
 ```
 
 ## Examples

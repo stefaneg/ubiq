@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/stefaneg/ubiq/internal/batch"
 	"github.com/stefaneg/ubiq/internal/person"
 	"github.com/stefaneg/ubiq/internal/server"
 )
@@ -48,10 +49,12 @@ func runServe(args []string, status io.Writer) error {
 	if err := checkOrigin(*origin); err != nil {
 		return err
 	}
-	if _, err := identity("committer", *committer); err != nil {
+	bot, err := identity("committer", *committer)
+	if err != nil {
 		return err
 	}
-	people, err := resolver(*keys, *ca, *fixed, person.WriterRule{Claim: *claim, Values: accepted})
+	rule := person.WriterRule{Claim: *claim, Values: accepted}
+	people, err := resolver(*keys, *ca, *fixed, rule)
 	if err != nil {
 		return err
 	}
@@ -59,8 +62,17 @@ func runServe(args []string, status io.Writer) error {
 	if err != nil {
 		return err
 	}
-	h := server.New(server.Options{Root: abs, Version: version(), People: people, Log: status})
-	return http.ListenAndServe(*listen, h)
+	l, err := net.Listen("tcp", *listen)
+	if err != nil {
+		return err
+	}
+	defer l.Close()
+	repo, err := batch.Open(abs, *origin, batch.Identity{Name: bot.Name, Email: bot.Address}, status)
+	if err != nil {
+		return fmt.Errorf("ubiq serve: %w.", err)
+	}
+	h := server.New(server.Options{Root: abs, Version: version(), People: people, Writers: rule, Batches: repo, Log: status})
+	return http.Serve(l, h)
 }
 
 // resolver is the Person resolver the flags ask for: the assertion verifier for the keys at keys, trusting the CA

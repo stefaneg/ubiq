@@ -13,6 +13,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/stefaneg/ubiq/internal/batch"
 	"github.com/stefaneg/ubiq/internal/glossary"
 	"github.com/stefaneg/ubiq/internal/mcpserver"
 	"github.com/stefaneg/ubiq/internal/page"
@@ -24,7 +25,9 @@ type Options struct {
 	Root    string          // the repository the Server reads
 	Version string          // ubiq's version, told to MCP clients
 	People  person.Resolver // who each request is on behalf of
-	Log     io.Writer       // one line per request
+	Writers person.WriterRule
+	Batches *batch.Repository // where Changes land; a Server without one refuses every write
+	Log     io.Writer         // one line per request and per Change
 }
 
 // New returns the Server's handler. A request whose Person cannot be resolved is answered 401, never as somebody
@@ -38,7 +41,9 @@ func New(o Options) http.Handler {
 			if b := branch(o.Root); b != "" {
 				opts = append(opts, mcpserver.Reads(b))
 			}
-			return mcpserver.New(o.Root, o.Version, o.People, opts...)
+			s := mcpserver.New(o.Root, o.Version, o.People, opts...)
+			o.addWriteTools(s)
+			return s
 		},
 		// The proxy reaches the loopback listener with the upstream's Host, which the SDK's DNS-rebinding guard
 		// would refuse.

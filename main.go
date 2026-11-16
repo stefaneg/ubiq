@@ -14,8 +14,8 @@
 // prints the glossary health report as one "path:line: rule: name: note" line per finding and exits 1 when
 // there is any. mcp serves lookup, check, health and whoami as Model Context Protocol tools on stdin and stdout,
 // reading the glossary afresh on every call; whoami is the working tree's git identity with role Maintainer. serve
-// runs the Server: the page at / and the same tools over HTTP at /mcp, every request on behalf of a Person; see
-// docs/server.md. Every command exits 2 on a usage or read error.
+// runs the Server: the page at / and the same tools over HTTP at /mcp, with the write tools beside them, every
+// request on behalf of a Person, every write a commit in the open Batch of a clone of origin; see docs/server.md. Every command exits 2 on a usage or read error.
 package main
 
 import (
