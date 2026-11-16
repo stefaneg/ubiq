@@ -1,4 +1,4 @@
-package edit_test
+package layout_test
 
 import (
 	"testing"
@@ -6,19 +6,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stefaneg/ubiq/internal/edit"
 	"github.com/stefaneg/ubiq/internal/glossary"
+	"github.com/stefaneg/ubiq/internal/layout"
 )
 
 // remove runs Remove on text with the model read from it, and requires it to succeed.
 func remove(t *testing.T, text, name string) string {
 	t.Helper()
-	out, err := edit.Remove(text, load(t, text), "shop", name)
+	out, err := layout.Remove(text, load(t, text), "shop", name)
 	require.NoError(t, err)
 	return out
 }
 
-func TestRemoveDeletesExactlyTheEntry(t *testing.T) {
+func TestRemoveDeletesExactlyTheTerm(t *testing.T) {
 	out := remove(t, shop, "customer")
 	assert.Equal(t, `# Shop
 
@@ -44,7 +44,7 @@ _Avoid_: bill
 `, out)
 }
 
-func TestRemoveOfTheFirstAndLastEntryKeepsTheTextAroundIt(t *testing.T) {
+func TestRemoveOfTheFirstAndLastTermKeepsTheTextAroundIt(t *testing.T) {
 	text := "# Shop\n\n## Language\n\n**Order**:\nA request.\n\n**Invoice**:\nA bill for an Order.\n"
 	assert.Equal(t, "# Shop\n\n## Language\n\n**Invoice**:\nA bill for an Order.\n", remove(t, text, "Order"))
 	assert.Equal(t, "# Shop\n\n## Language\n\n**Order**:\nA request.\n", remove(t, text, "Invoice"))
@@ -75,16 +75,16 @@ func TestRemoveLeavesUnresolvedPhrasesWhereTheTermWasReferenced(t *testing.T) {
 }
 
 func TestRemoveRefusesATermThatDoesNotExistNamingIt(t *testing.T) {
-	_, err := edit.Remove(shop, load(t, shop), "shop", "Refund")
+	_, err := layout.Remove(shop, load(t, shop), "shop", "Refund")
 	require.EqualError(t, err, "there is no Term Refund in Shop")
 }
 
 func TestRemoveRefusesAnEmptyName(t *testing.T) {
-	_, err := edit.Remove(shop, load(t, shop), "shop", "")
+	_, err := layout.Remove(shop, load(t, shop), "shop", "")
 	require.EqualError(t, err, "the Term's name is empty")
 }
 
 func TestRemoveRefusesAnUnknownContextNamingIt(t *testing.T) {
-	_, err := edit.Remove(shop, load(t, shop), "billing", "Order")
+	_, err := layout.Remove(shop, load(t, shop), "billing", "Order")
 	require.EqualError(t, err, "no Context billing")
 }

@@ -1,4 +1,4 @@
-package edit_test
+package layout_test
 
 import (
 	"os"
@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stefaneg/ubiq/internal/edit"
 	"github.com/stefaneg/ubiq/internal/glossary"
 	"github.com/stefaneg/ubiq/internal/glossarytest"
+	"github.com/stefaneg/ubiq/internal/layout"
 )
 
 // orders mentions Order in bold and plain, singular, plural and possessive, beside Order Line, code and an Avoid line.
@@ -40,7 +40,7 @@ A bill for **orders** or an **Order's** lines, not ` + "`Order`" + ` or an order
 `
 
 func TestReviseWithANewNameRewritesEveryReferenceInItsGlossary(t *testing.T) {
-	out := revise(t, orders, edit.Revision{Context: "shop", Name: "order", NewName: "Purchase", Definition: "A request for goods."})
+	out := revise(t, orders, layout.Term{Context: "shop", Name: "order", Definition: "A request for goods."}, "Purchase")
 	assert.Equal(t, `# Shop
 
 Purchases and an Purchase's lines.
@@ -67,15 +67,15 @@ A bill for **Purchases** or an **Purchase's** lines, not `+"`Order`"+` or an ord
 }
 
 func TestARenameLeavesNoUnresolvedPhraseBehind(t *testing.T) {
-	out := revise(t, orders, edit.Revision{Context: "shop", Name: "Order", NewName: "Basket", Definition: "Goods chosen."})
+	out := revise(t, orders, layout.Term{Context: "shop", Name: "Order", Definition: "Goods chosen."}, "Basket")
 	model := load(t, out)
 	assert.Empty(t, model.Unresolved)
 	assert.ElementsMatch(t, []string{"shop/basket"}, model.Terms["shop/invoice"].Refs)
 }
 
 func TestARenameWithAMoveRoundTripsThroughTheParser(t *testing.T) {
-	out := revise(t, shop, edit.Revision{Context: "shop", Name: "Order", NewName: "Purchase", Cluster: "Billing",
-		Definition: "A request for goods by a Customer.", Avoid: []string{"order"}})
+	out := revise(t, shop, layout.Term{Context: "shop", Name: "Order", Cluster: "Billing",
+		Definition: "A request for goods by a Customer.", Avoid: []string{"order"}}, "Purchase")
 	after := load(t, out)
 	require.Len(t, after.Terms, 3, out)
 	purchase := after.Terms["shop/purchase"]
@@ -90,7 +90,7 @@ func TestARenameWithAMoveRoundTripsThroughTheParser(t *testing.T) {
 
 func TestARenameLeavesHeadingsAlone(t *testing.T) {
 	text := "# Order\n\n## Language\n\n### Order handling\n\n**Order**:\nA request.\n\n## Relationships\n\n### Orders and Invoices\n\n- An Order.\n"
-	out := revise(t, text, edit.Revision{Context: "order", Name: "Order", NewName: "Basket", Definition: "A request."})
+	out := revise(t, text, layout.Term{Context: "order", Name: "Order", Definition: "A request."}, "Basket")
 	assert.Equal(t, "# Order\n\n## Language\n\n### Order handling\n\n**Basket**:\nA request.\n\n## Relationships\n\n### Orders and Invoices\n\n- An Basket.\n", out)
 }
 
@@ -104,7 +104,7 @@ func TestARenamePluralisesTheNewName(t *testing.T) {
 		"Purchase Order": "A bill for Purchase Orders and **Purchase Orders**.",
 	} {
 		t.Run(to, func(t *testing.T) {
-			out := revise(t, text, edit.Revision{Context: "shop", Name: "Order", NewName: to, Definition: "A request."})
+			out := revise(t, text, layout.Term{Context: "shop", Name: "Order", Definition: "A request."}, to)
 			assert.Contains(t, out, "**Invoice**:\n"+want+"\n")
 			assert.Empty(t, load(t, out).Unresolved, out)
 		})
@@ -123,9 +123,9 @@ func TestARenameRewritesOnlyReferencesThatResolveToTheTerm(t *testing.T) {
 	// Common's Run is renamed; Workspace has its own Run, and Stacks, which has none, resolves Run in Workspace, the
 	// first Context of the map that defines it, so neither Glossary changes.
 	stacks := read("internal/stacks/GLOSSARY.md")
-	assert.Equal(t, stacks, edit.Rename(stacks, model, "stacks", "common", "Run", "Job"))
+	assert.Equal(t, stacks, layout.Rename(stacks, model, "stacks", "common", "Run", "Job"))
 	workspace := read("internal/workspace/GLOSSARY.md")
-	assert.Equal(t, workspace, edit.Rename(workspace, model, "workspace", "common", "Run", "Job"))
+	assert.Equal(t, workspace, layout.Rename(workspace, model, "workspace", "common", "Run", "Job"))
 
 	// Workspace's Image is renamed: Stacks and the Context Map refer to it.
 	assert.Equal(t, `# Stacks
@@ -143,7 +143,7 @@ _Avoid_: deployment, deploy
 **Stack Image**:
 An image a **Stack** runs, identified by a workspace **Picture**.
 _Avoid_: stack container
-`, edit.Rename(stacks, model, "stacks", "workspace", "Image", "Picture"))
-	assert.Contains(t, edit.Rename(read("GLOSSARY-MAP.md"), model, "", "workspace", "Image", "Picture"),
+`, layout.Rename(stacks, model, "stacks", "workspace", "Image", "Picture"))
+	assert.Contains(t, layout.Rename(read("GLOSSARY-MAP.md"), model, "", "workspace", "Image", "Picture"),
 		"- **Workspace → Stacks**: a **Stack Image** names a workspace **Picture**.\n")
 }

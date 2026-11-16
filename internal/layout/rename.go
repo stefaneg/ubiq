@@ -1,4 +1,4 @@
-package edit
+package layout
 
 import (
 	"strings"
@@ -8,13 +8,13 @@ import (
 	"github.com/stefaneg/ubiq/internal/glossary"
 )
 
-// Rename rewrites every Reference in text to the Term named name of the Context with key context so that it names
+// Rename rewrites every Reference in text to the Term named name of the Context with key so that it names
 // newName, bold and plain, singular and plural, and returns the new text. text is the Glossary of the Context with key
 // in, or the Context Map when in is empty; model is the Domain Model as read. A mention resolves as the parser
 // resolves it, so a mention of another Term of the same name stays. Headings, which name Contexts and Clusters, Term
 // name lines, Avoid lines, code and links are left alone, and so is the number of lines.
-func Rename(text string, model *glossary.Model, in, context, name, newName string) string {
-	term := termNamed(model, context, name)
+func Rename(text string, model *glossary.Model, in, key, name, newName string) string {
+	term := model.TermNamed(key, name)
 	if term == nil {
 		return text
 	}

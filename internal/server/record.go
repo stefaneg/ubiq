@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/stefaneg/ubiq/internal/batch"
-	"github.com/stefaneg/ubiq/internal/edit"
 	"github.com/stefaneg/ubiq/internal/glossary"
 	"github.com/stefaneg/ubiq/internal/health"
+	"github.com/stefaneg/ubiq/internal/layout"
 	"github.com/stefaneg/ubiq/internal/person"
 )
 
@@ -26,37 +26,37 @@ func (o Options) record(p person.Person, in recordInput) (string, error) {
 	}
 	var file, body string
 	var introduced []health.Finding
-	landed, err := o.Batches.Change(batch.Identity{Name: p.Name, Email: p.Email}, func() (batch.Edit, error) {
+	landed, err := o.Batches.Change(batch.Identity{Name: p.Name, Email: p.Email}, func() (batch.Commit, error) {
 		dir := filepath.Join(o.Root, filepath.FromSlash(adrDir))
 		entries, err := os.ReadDir(dir)
 		if err != nil && !os.IsNotExist(err) {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		var names []string
 		for _, e := range entries {
 			names = append(names, e.Name())
 		}
-		adr, err := edit.Record(names, in.Title, in.Text)
+		adr, err := layout.Record(names, in.Title, in.Text)
 		if err != nil {
-			return batch.Edit{}, errors.New(sentence(err.Error()))
+			return batch.Commit{}, errors.New(sentence(err.Error()))
 		}
 		before, err := glossary.Load(o.Root)
 		if err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		if err := os.WriteFile(filepath.Join(dir, adr.Name), []byte(adr.Body), 0o644); err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		after, err := glossary.Load(o.Root)
 		if err != nil {
-			return batch.Edit{}, fmt.Errorf("The Domain Model would no longer read after recording %s: %s.", adr.Title, err)
+			return batch.Commit{}, fmt.Errorf("The Domain Model would no longer read after recording %s: %s.", adr.Title, err)
 		}
 		file, body = path.Join(adrDir, adr.Name), adr.Body
 		introduced = newFindings(health.Check(before), health.Check(after))
-		return batch.Edit{Subject: "Record ADR " + adr.Title, Paths: []string{file}}, nil
+		return batch.Commit{Subject: "Record ADR " + adr.Title, Paths: []string{file}}, nil
 	})
 	if err != nil {
 		return "", err

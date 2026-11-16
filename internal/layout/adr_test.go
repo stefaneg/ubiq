@@ -1,4 +1,4 @@
-package edit_test
+package layout_test
 
 import (
 	"testing"
@@ -6,13 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stefaneg/ubiq/internal/edit"
+	"github.com/stefaneg/ubiq/internal/layout"
 )
 
 // record runs Record and requires it to succeed.
 func record(t *testing.T, names []string, title, text string) (string, string) {
 	t.Helper()
-	adr, err := edit.Record(names, title, text)
+	adr, err := layout.Record(names, title, text)
 	require.NoError(t, err)
 	return adr.Name, adr.Body
 }
@@ -40,7 +40,7 @@ func TestAnADRIsRefusedNamingWhatIsWrong(t *testing.T) {
 		{"Pin Tags!", "We pin tags.", "the title Pin Tags! slugs to pin-tags, as 0001-pin-tags.md does"},
 		{"!?", "We pin tags.", "the title !? has no letters or digits to name the file by"},
 	} {
-		_, err := edit.Record(names, c.title, c.text)
+		_, err := layout.Record(names, c.title, c.text)
 		if assert.Error(t, err, c.refusal) {
 			assert.Equal(t, c.refusal, err.Error())
 		}

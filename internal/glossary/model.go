@@ -4,6 +4,8 @@ package glossary
 import (
 	"html"
 	"regexp"
+	"slices"
+	"strings"
 )
 
 // Context is one glossary file.
@@ -73,6 +75,22 @@ func (m *Model) ContextName(key string) string {
 		}
 	}
 	return key
+}
+
+// TermNamed is the Term of the Context with key named name, regardless of case and surrounding space, or nil.
+func (m *Model) TermNamed(key, name string) *Term {
+	name = strings.TrimSpace(name)
+	for _, t := range m.Terms {
+		if t.Context == key && strings.EqualFold(t.Name, name) {
+			return t
+		}
+	}
+	return nil
+}
+
+// HasContext tells whether the model has a Context with key.
+func (m *Model) HasContext(key string) bool {
+	return slices.ContainsFunc(m.Contexts, func(c Context) bool { return c.Key == key })
 }
 
 var reTag = regexp.MustCompile(`<[^>]*>`)

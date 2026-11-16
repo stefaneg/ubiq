@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/stefaneg/ubiq/internal/batch"
-	"github.com/stefaneg/ubiq/internal/edit"
 	"github.com/stefaneg/ubiq/internal/glossary"
 	"github.com/stefaneg/ubiq/internal/health"
+	"github.com/stefaneg/ubiq/internal/layout"
 	"github.com/stefaneg/ubiq/internal/person"
 )
 
@@ -23,7 +23,7 @@ const contextMap = "GLOSSARY-MAP.md"
 // renamed, with every Reference to it rewritten. It answers the Term as it now reads, the commit, the Batch and the
 // Findings the Change introduced.
 func (o Options) revise(p person.Person, in reviseInput) (string, error) {
-	r := edit.Revision{Name: in.Name, NewName: in.NewName, Definition: in.Definition, Avoid: in.Avoid, Cluster: in.Cluster}
+	r := layout.Term{Name: in.Name, Definition: in.Definition, Avoid: in.Avoid, Cluster: in.Cluster}
 	var old, name string
 	c, landed, introduced, err := o.changeTerms(p, in.Context, func(before *glossary.Model, c glossary.Context) (map[string]string, string, error) {
 		r.Context = c.Key
@@ -31,7 +31,7 @@ func (o Options) revise(p person.Person, in reviseInput) (string, error) {
 		if err != nil {
 			return nil, "", err
 		}
-		out, err := edit.Revise(text, before, r)
+		out, err := layout.Revise(text, before, r, in.NewName)
 		if err != nil {
 			return nil, "", err
 		}
@@ -70,7 +70,7 @@ func (o Options) remove(p person.Person, in removeInput) (string, error) {
 		if err != nil {
 			return nil, "", err
 		}
-		out, err := edit.Remove(text, before, c.Key, in.Name)
+		out, err := layout.Remove(text, before, c.Key, in.Name)
 		if err != nil {
 			return nil, "", err
 		}
@@ -104,7 +104,7 @@ func (o Options) renameElsewhere(files map[string]string, before *glossary.Model
 		if err != nil {
 			return err
 		}
-		if out := edit.Rename(text, before, key, c.Key, old, name); out != text {
+		if out := layout.Rename(text, before, key, c.Key, old, name); out != text {
 			files[path] = out
 		}
 	}
@@ -132,31 +132,31 @@ func (o Options) changeTerms(p person.Person, named string,
 	}
 	var c changed
 	var introduced []health.Finding
-	landed, err := o.Batches.Change(batch.Identity{Name: p.Name, Email: p.Email}, func() (batch.Edit, error) {
+	landed, err := o.Batches.Change(batch.Identity{Name: p.Name, Email: p.Email}, func() (batch.Commit, error) {
 		before, err := glossary.Load(o.Root)
 		if err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		if c.Context, err = contextNamed(before, named); err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		files, subject, err := run(before, c.Context)
 		if err != nil {
-			return batch.Edit{}, errors.New(sentence(err.Error()))
+			return batch.Commit{}, errors.New(sentence(err.Error()))
 		}
 		var paths []string
 		for path, text := range files {
 			if err := os.WriteFile(filepath.Join(o.Root, filepath.FromSlash(path)), []byte(text), 0o644); err != nil {
-				return batch.Edit{}, err
+				return batch.Commit{}, err
 			}
 			paths = append(paths, path)
 		}
 		slices.Sort(paths)
 		if c.after, err = glossary.Load(o.Root); err != nil {
-			return batch.Edit{}, fmt.Errorf("The Glossary would no longer read after the Change %s: %s.", subject, err)
+			return batch.Commit{}, fmt.Errorf("The Glossary would no longer read after the Change %s: %s.", subject, err)
 		}
 		introduced = newFindings(health.Check(before), health.Check(c.after))
-		return batch.Edit{Subject: subject, Paths: paths}, nil
+		return batch.Commit{Subject: subject, Paths: paths}, nil
 	})
 	return c, landed, introduced, err
 }

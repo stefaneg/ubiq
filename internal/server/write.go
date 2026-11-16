@@ -14,9 +14,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/stefaneg/ubiq/internal/batch"
-	"github.com/stefaneg/ubiq/internal/edit"
 	"github.com/stefaneg/ubiq/internal/glossary"
 	"github.com/stefaneg/ubiq/internal/health"
+	"github.com/stefaneg/ubiq/internal/layout"
 	"github.com/stefaneg/ubiq/internal/lookup"
 	"github.com/stefaneg/ubiq/internal/person"
 )
@@ -158,7 +158,7 @@ func (o Options) writer(req *mcp.CallToolRequest) (person.Person, error) {
 // define lands t as a new Term in the open Batch and answers the Term as it now reads, the commit, the Batch and the
 // Findings the Change introduced.
 func (o Options) define(p person.Person, in defineInput) (string, error) {
-	t := edit.Term{Name: strings.TrimSpace(in.Name), Definition: in.Definition, Avoid: in.Avoid, Cluster: in.Cluster}
+	t := layout.Term{Name: strings.TrimSpace(in.Name), Definition: in.Definition, Avoid: in.Avoid, Cluster: in.Cluster}
 	if t.Name == "" {
 		return "", errors.New("The Term's name is empty.")
 	}
@@ -170,35 +170,35 @@ func (o Options) define(p person.Person, in defineInput) (string, error) {
 	}
 	var entry string
 	var introduced []health.Finding
-	landed, err := o.Batches.Change(batch.Identity{Name: p.Name, Email: p.Email}, func() (batch.Edit, error) {
+	landed, err := o.Batches.Change(batch.Identity{Name: p.Name, Email: p.Email}, func() (batch.Commit, error) {
 		before, err := glossary.Load(o.Root)
 		if err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		c, err := contextNamed(before, in.Context)
 		if err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		t.Context = c.Key
 		path := filepath.Join(o.Root, filepath.FromSlash(c.Path))
 		text, err := os.ReadFile(path)
 		if err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
-		out, err := edit.Define(string(text), before, t)
+		out, err := layout.Define(string(text), before, t)
 		if err != nil {
-			return batch.Edit{}, errors.New(sentence(err.Error()))
+			return batch.Commit{}, errors.New(sentence(err.Error()))
 		}
 		if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
-			return batch.Edit{}, err
+			return batch.Commit{}, err
 		}
 		after, err := glossary.Load(o.Root)
 		if err != nil {
-			return batch.Edit{}, fmt.Errorf("The Glossary would no longer read after defining %s: %s.", t.Name, err)
+			return batch.Commit{}, fmt.Errorf("The Glossary would no longer read after defining %s: %s.", t.Name, err)
 		}
 		entry = termEntry(after, c.Key, t.Name)
 		introduced = newFindings(health.Check(before), health.Check(after))
-		return batch.Edit{Subject: "Define Term " + t.Name, Paths: []string{c.Path}}, nil
+		return batch.Commit{Subject: "Define Term " + t.Name, Paths: []string{c.Path}}, nil
 	})
 	if err != nil {
 		return "", err

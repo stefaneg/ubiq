@@ -1,4 +1,4 @@
-package edit_test
+package layout_test
 
 import (
 	"testing"
@@ -6,20 +6,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stefaneg/ubiq/internal/edit"
+	"github.com/stefaneg/ubiq/internal/layout"
 )
 
 // revise runs Revise on text with the model read from it, and requires it to succeed.
-func revise(t *testing.T, text string, r edit.Revision) string {
+func revise(t *testing.T, text string, r layout.Term, newName string) string {
 	t.Helper()
-	out, err := edit.Revise(text, load(t, text), r)
+	out, err := layout.Revise(text, load(t, text), r, newName)
 	require.NoError(t, err)
 	return out
 }
 
 func TestReviseReplacesTheDefinitionAndAvoidedWordsInFullInPlace(t *testing.T) {
-	out := revise(t, shop, edit.Revision{Context: "shop", Name: "customer",
-		Definition: "Someone who pays an Invoice\nfor Orders.", Avoid: []string{" client ", ""}})
+	out := revise(t, shop, layout.Term{Context: "shop", Name: "customer",
+		Definition: "Someone who pays an Invoice\nfor Orders.", Avoid: []string{" client ", ""}}, "")
 	assert.Equal(t, `# Shop
 
 Selling things.
@@ -49,12 +49,12 @@ _Avoid_: bill
 }
 
 func TestReviseWithoutAvoidedWordsDropsTheAvoidLine(t *testing.T) {
-	out := revise(t, shop, edit.Revision{Context: "shop", Name: "Order", Definition: "A request for goods."})
+	out := revise(t, shop, layout.Term{Context: "shop", Name: "Order", Definition: "A request for goods."}, "")
 	assert.Contains(t, out, "### Ordering\n\n**Order**:\nA request for goods.\n\n**Customer**:\n")
 }
 
-func TestReviseNamingAnotherClusterMovesTheEntryToItsEnd(t *testing.T) {
-	out := revise(t, shop, edit.Revision{Context: "shop", Name: "Order", Definition: "A request for goods.", Cluster: "billing"})
+func TestReviseNamingAnotherClusterMovesTheTermToItsEnd(t *testing.T) {
+	out := revise(t, shop, layout.Term{Context: "shop", Name: "Order", Definition: "A request for goods.", Cluster: "billing"}, "")
 	assert.Equal(t, `# Shop
 
 Selling things.
@@ -82,7 +82,7 @@ A request for goods.
 }
 
 func TestReviseNamingAnUnknownClusterCreatesItAfterTheLastTerm(t *testing.T) {
-	out := revise(t, shop, edit.Revision{Context: "shop", Name: "Customer", Definition: "A buyer.", Cluster: "People"})
+	out := revise(t, shop, layout.Term{Context: "shop", Name: "Customer", Definition: "A buyer.", Cluster: "People"}, "")
 	assert.Equal(t, `# Shop
 
 Selling things.
@@ -113,38 +113,38 @@ A buyer.
 }
 
 func TestReviseNamingTheTermsOwnClusterLeavesItInPlace(t *testing.T) {
-	out := revise(t, shop, edit.Revision{Context: "shop", Name: "Order", Definition: "A request.", Cluster: "ORDERING"})
+	out := revise(t, shop, layout.Term{Context: "shop", Name: "Order", Definition: "A request.", Cluster: "ORDERING"}, "")
 	assert.Contains(t, out, "### Ordering\n\n**Order**:\nA request.\n\n**Customer**:\n")
 }
 
 func TestReviseMovingTheLastTermOfAGlossaryKeepsTheTextAroundIt(t *testing.T) {
 	text := "# Shop\n\n## Language\n\n### Ordering\n\n**Order**:\nA request.\n\n### Billing\n\n**Invoice**:\nA bill.\n"
-	out := revise(t, text, edit.Revision{Context: "shop", Name: "Invoice", Definition: "A bill.", Cluster: "Ordering"})
+	out := revise(t, text, layout.Term{Context: "shop", Name: "Invoice", Definition: "A bill.", Cluster: "Ordering"}, "")
 	assert.Equal(t, "# Shop\n\n## Language\n\n### Ordering\n\n**Order**:\nA request.\n\n**Invoice**:\nA bill.\n\n### Billing\n", out)
 }
 
 func TestReviseRefusesATermThatDoesNotExistNamingIt(t *testing.T) {
-	_, err := edit.Revise(shop, load(t, shop), edit.Revision{Context: "shop", Name: "Refund", Definition: "Money returned."})
+	_, err := layout.Revise(shop, load(t, shop), layout.Term{Context: "shop", Name: "Refund", Definition: "Money returned."}, "")
 	require.EqualError(t, err, "there is no Term Refund in Shop")
 }
 
 func TestReviseRefusesAnEmptyName(t *testing.T) {
-	_, err := edit.Revise(shop, load(t, shop), edit.Revision{Context: "shop", Name: " ", Definition: "A buyer."})
+	_, err := layout.Revise(shop, load(t, shop), layout.Term{Context: "shop", Name: " ", Definition: "A buyer."}, "")
 	require.EqualError(t, err, "the Term's name is empty")
 }
 
 func TestReviseRefusesAnEmptyDefinition(t *testing.T) {
-	_, err := edit.Revise(shop, load(t, shop), edit.Revision{Context: "shop", Name: "customer", Definition: " \n"})
+	_, err := layout.Revise(shop, load(t, shop), layout.Term{Context: "shop", Name: "customer", Definition: " \n"}, "")
 	require.EqualError(t, err, "the definition of Customer is empty")
 }
 
 func TestReviseRefusesAnUnknownContextNamingIt(t *testing.T) {
-	_, err := edit.Revise(shop, load(t, shop), edit.Revision{Context: "billing", Name: "Order", Definition: "A request."})
+	_, err := layout.Revise(shop, load(t, shop), layout.Term{Context: "billing", Name: "Order", Definition: "A request."}, "")
 	require.EqualError(t, err, "no Context billing")
 }
 
 func TestReviseRefusesARenameToAnExistingNameNamingIt(t *testing.T) {
-	_, err := edit.Revise(shop, load(t, shop), edit.Revision{Context: "shop", Name: "Order", NewName: "invoice",
-		Definition: "A request."})
+	_, err := layout.Revise(shop, load(t, shop), layout.Term{Context: "shop", Name: "Order",
+		Definition: "A request."}, "invoice")
 	require.EqualError(t, err, "the Term Invoice already exists in Shop")
 }

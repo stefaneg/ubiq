@@ -41,10 +41,12 @@ const checkDescription = `Check text against this repository's glossary: a doc, 
 	`the Term to use instead, and its Capitalised Phrases that match no Term, which are either missing Terms or words ` +
 	`to replace. Call it on text you wrote before you finish.`
 
-const healthDescription = `Run the Health Check on this repository's glossary: one "path:line: rule: name: note" line ` +
-	`per Finding, then a summary line counting them by rule. The rules are long (a definition over two sentences), ` +
-	`orphan (a Term nothing mentions), unmapped (a name two Contexts define with no statement relating them) and ` +
-	`unresolved (a bold phrase that names no Term). Call it after changing the glossary to find what is left to fix.`
+const healthDescription = `Run the Health Check on this repository's Domain Model: one "path:line: rule: name: note" ` +
+	`line per Finding, then a summary line counting them by rule. The Health Rules, by the rule each line names, are ` +
+	`long, a Long Definition (a Term whose definition runs over two sentences); orphan, an Orphan (a Term with no ` +
+	`Reference); unmapped, an Unmapped Name (a name two Contexts define with no Statement naming both); and ` +
+	`unresolved, an Unresolved Phrase (a bold phrase that names no Term or Context). Call it after changing a ` +
+	`Glossary to see what is left to fix.`
 
 const whoamiDescription = `Tell who this server acts for: the Person's name, email and role. Over stdio that is the ` +
 	`git identity of the working tree with role Maintainer; on the Server it is the logged-in Person, a Reader or a ` +

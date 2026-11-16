@@ -71,11 +71,7 @@ func (o Options) page(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	name := p.Name
-	if name == "" {
-		name = p.Email
-	}
-	html, err := page.RenderFor(model, page.Viewer{Name: name, Role: string(p.Role)})
+	html, err := page.RenderFor(model, p)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

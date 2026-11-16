@@ -37,8 +37,8 @@ type Repository struct {
 	failing string     // why the open Batch last could not be prepared, empty when it could
 }
 
-// Edit is what a Change wrote to the clone: the commit's subject and the files, relative to the root, it changed.
-type Edit struct {
+// Commit is what one Change commits: its subject and the files, relative to the root, it changed.
+type Commit struct {
 	Subject string
 	Paths   []string
 }
@@ -100,16 +100,16 @@ func (r *Repository) note(err error) {
 }
 
 // Change lands one Change in the open Batch: it fetches origin and checks the open Batch out with the default branch
-// merged in, runs edit on the clone, and commits what edit wrote, authored by author and committed by the Server,
-// then pushes. When origin refuses the push because the Batch moved, it fetches and runs edit once more on the
-// Batch as it now is. When edit fails, nothing lands and the clone is left as the Batch.
-func (r *Repository) Change(author Identity, edit func() (Edit, error)) (Landed, error) {
+// merged in, runs apply on the clone, and commits what apply changed, authored by author and committed by the Server,
+// then pushes. When origin refuses the push because the Batch moved, it fetches and runs apply once more on the
+// Batch as it now is. When apply fails, nothing lands and the clone is left as the Batch.
+func (r *Repository) Change(author Identity, apply func() (Commit, error)) (Landed, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	landed, err := r.land(author, edit)
+	landed, err := r.land(author, apply)
 	var rejected *rejectedPush
 	if errors.As(err, &rejected) {
-		landed, err = r.land(author, edit)
+		landed, err = r.land(author, apply)
 	}
 	return landed, err
 }
@@ -119,19 +119,19 @@ type rejectedPush struct{ err error }
 
 func (e *rejectedPush) Error() string { return e.err.Error() }
 
-// land prepares the open Batch, runs edit and commits and pushes what it wrote.
-func (r *Repository) land(author Identity, edit func() (Edit, error)) (Landed, error) {
+// land prepares the open Batch, runs apply and commits and pushes what it changed.
+func (r *Repository) land(author Identity, apply func() (Commit, error)) (Landed, error) {
 	batch, err := r.prepare()
 	r.note(err)
 	if err != nil {
 		return Landed{}, err
 	}
-	e, err := edit()
+	c, err := apply()
 	if err != nil {
 		r.discard()
 		return Landed{}, err
 	}
-	commit, err := r.commit(author, e)
+	commit, err := r.commit(author, c)
 	if err != nil {
 		r.discard()
 		return Landed{}, err
@@ -242,13 +242,13 @@ func (r *Repository) checkout(branch, start string) (string, error) {
 	return branch, nil
 }
 
-// commit commits the paths of e as one commit by author and returns its full id.
-func (r *Repository) commit(author Identity, e Edit) (string, error) {
-	if _, err := r.git(nil, append([]string{"add", "--all", "--"}, e.Paths...)...); err != nil {
+// commit commits the paths of c as one commit by author and returns its full id.
+func (r *Repository) commit(author Identity, c Commit) (string, error) {
+	if _, err := r.git(nil, append([]string{"add", "--all", "--"}, c.Paths...)...); err != nil {
 		return "", err
 	}
 	env := append(author.env("AUTHOR"), r.committer.env("COMMITTER")...)
-	if _, err := r.git(env, "commit", "--quiet", "--no-verify", "-m", e.Subject); err != nil {
+	if _, err := r.git(env, "commit", "--quiet", "--no-verify", "-m", c.Subject); err != nil {
 		return "", err
 	}
 	return r.git(nil, "rev-parse", "HEAD")

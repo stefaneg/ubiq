@@ -401,7 +401,7 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 		r.file = rc.path
 		m.Statements = append(m.Statements, r.renderStatements(rc.key, rc.statements, rc.headings)...)
 	}
-	r.file = mapFile
+	r.file = MapFile
 	m.Statements = append(m.Statements, r.renderStatements("", mapStatements, mapHeadings)...)
 	m.ADRs = r.renderADRs(adrs)
 	sort.Slice(m.Unresolved, func(i, j int) bool { return m.Unresolved[i].Phrase < m.Unresolved[j].Phrase })
