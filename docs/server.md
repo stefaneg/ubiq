@@ -245,7 +245,8 @@ project access token with `write_repository`, whose bot user GitLab creates. Any
 
 Packer bakes and Terraform places, both run from a Maintainer's machine; there is no pipeline
 ([ADR 0007](adr/0007-the-server-runs-beside-its-proxy-on-one-instance.md)). The code lives in
-[deploy/packer](../deploy/packer) and [deploy/terraform](../deploy/terraform) and is not reproduced here.
+[deploy/packer](../deploy/packer) and [deploy/terraform](../deploy/terraform) and is not reproduced here;
+[deploy/README.md](../deploy/README.md) holds the steps below with their commands.
 
 **Packer** bakes an Amazon Linux 2023 arm64 image for a `t4g.micro`: Pomerium from its rpm repository, which brings
 its own unit and user; the ubiq binary cross-compiled on the Maintainer's machine (`GOOS=linux GOARCH=arm64`) until

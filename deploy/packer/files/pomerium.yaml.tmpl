@@ -1,0 +1,55 @@
+# Pomerium Core for a ubiq Deployment. First boot renders this to /etc/pomerium/config.yaml, replacing each @NAME@
+# with its value from /etc/ubiq/provision.env or a secret it generates (files/first-boot.sh). docs/server.md, "What
+# the Deployment owns", says why each setting is here; dev/pomerium/config.yaml is the same file for the dev stack.
+
+# TLS is the proxy's: Let's Encrypt certificates for the three hostnames, by TLS-ALPN-01 on 443 or HTTP-01 on 80.
+# Port 80 otherwise redirects to https. Certificates live in the rpm unit's AUTOCERT_DIR.
+address: ":443"
+http_redirect_addr: ":80"
+autocert: true
+
+authenticate_service_url: "https://authenticate.@DOMAIN@"
+
+# Generated at first boot; lost with the instance, so everyone logs in again after a replacement.
+shared_secret: "@SHARED_SECRET@"
+cookie_secret: "@COOKIE_SECRET@"
+databroker_storage_type: file
+databroker_storage_connection_string: file:///var/lib/pomerium/databroker
+
+# The Identity Provider, by OpenID Connect discovery from its issuer.
+idp_provider: oidc
+idp_provider_url: "@IDP_ISSUER@"
+idp_client_id: "@IDP_CLIENT_ID@"
+idp_client_secret: "@IDP_CLIENT_SECRET@"
+
+# MCP clients register by a client ID metadata document whose host is listed here; Claude Code's is
+# https://claude.ai/oauth/claude-code-client-metadata. Dynamic client registration stays off (the runtime flag
+# mcp_dynamic_client_registration); the dev stack turns it on.
+mcp_allowed_client_id_domains:
+  - claude.ai
+
+routes:
+  # Both routes admit anyone the Identity Provider admits; the Server's Writer Rule alone decides who writes.
+  # pass_identity_headers sends the assertion JWT the Server reads the Person from, on MCP requests too.
+
+  # The Server's page.
+  - from: "https://ubiq.@DOMAIN@"
+    to: http://127.0.0.1:8766
+    pass_identity_headers: true
+    policy:
+      - allow:
+          or:
+            - authenticated_user: true
+
+  # The Server's MCP endpoint (/mcp). `mcp: server` makes the route an OAuth 2.1 protected resource with Pomerium as
+  # its authorization server; bearer tokens only.
+  - from: "https://mcp.@DOMAIN@"
+    to: http://127.0.0.1:8766
+    name: Ubiq MCP
+    pass_identity_headers: true
+    mcp:
+      server: {}
+    policy:
+      - allow:
+          or:
+            - authenticated_user: true

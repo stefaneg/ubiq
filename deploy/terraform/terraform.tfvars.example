@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars (gitignored: it holds secrets) and fill in. This is the test Deployment: Google as the
+# Identity Provider, which sends no groups, so the Writer Rule is on email; sslip.io hostnames, since domain is empty.
+
+region = "eu-west-1"
+
+# domain          = "glossary.example.com"
+# route53_zone_id = "Z0123456789ABCDEFGHIJ"
+
+idp_issuer        = "https://accounts.google.com"
+idp_client_id     = "0000000000-xxxxxxxx.apps.googleusercontent.com"
+idp_client_secret = "GOCSPX-xxxxxxxx"
+
+writer_claim = "email"
+writers      = ["you@example.com"]
+
+# GitHub: a machine account that is a collaborator on the one repository, with a fine-grained token, contents read and write.
+origin       = "https://github.com/example/handbook.git"
+push_account = "example-ubiq-bot"
+push_token   = "github_pat_xxxxxxxx"
+committer    = "example-ubiq-bot <example-ubiq-bot@users.noreply.github.com>"
+
+# GitLab: a project access token with write_repository; its bot user is the account.
+# origin       = "https://gitlab.com/example/handbook.git"
+# push_account = "project_12345678_bot_0123456789abcdef"
+# push_token   = "glpat-xxxxxxxx"
+# committer    = "handbook ubiq bot <project_12345678_bot_0123456789abcdef@noreply.gitlab.com>"
