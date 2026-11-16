@@ -82,15 +82,15 @@ func TestTheNextLookupFindsTheDefinedTermWithItsCluster(t *testing.T) {
 		"definition": "A content hash that pins an Image.", "avoid": []string{"checksum"},
 	})
 	require.False(t, isErr, text)
-	entry := "Digest (Common › Image References), GLOSSARY.md:23\n" +
+	lookedUp := "Digest (Common › Image References), GLOSSARY.md:23\n" +
 		"  A content hash that pins an Image.\n" +
 		"  avoid: checksum\n" +
 		"  refers to: Image (Workspace)\n"
-	assert.Contains(t, text, "\n\n"+entry, "the result holds the entry as it now reads")
+	assert.Contains(t, text, "\n\n"+lookedUp, "the result holds the Term as it now reads")
 
 	text, isErr = call(t, cs, "lookup", map[string]any{"words": []string{"Digest"}})
 	assert.False(t, isErr)
-	assert.Equal(t, entry, text)
+	assert.Equal(t, lookedUp, text)
 }
 
 // define calls define_term in Common and requires it to land.
