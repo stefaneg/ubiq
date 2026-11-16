@@ -165,6 +165,9 @@ half minute. Then:
   "Holds a Change" means "has a commit the Server committed that no earlier Batch on origin has": a Batch opened by
   hand with no Change is never taken as merged, even from a default branch that carries an earlier Batch's Changes,
   and a merged Batch whose history was kept is not mistaken for an empty one.
+- When the Batch **holds no Change and the default branch has moved past it**, as a Batch a Maintainer opened by
+  hand does, it is reset to the default branch and reused rather than merged with it. One with commits of its own but
+  no Change keeps them and has the default branch merged in, so no one's commit is lost.
 - Otherwise the Change is committed on the Batch and pushed straight after. A push rejected because the branch moved
   is retried after a fetch.
 

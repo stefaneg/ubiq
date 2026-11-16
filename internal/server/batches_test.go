@@ -106,6 +106,18 @@ func TestABatchOpenedByHandWithNoChangeIsReusedFromTheDefaultBranch(t *testing.T
 	assert.Equal(t, onOrigin(t, origin, "%H", "main"), onOrigin(t, origin, "%P", "ubiq/1"))
 }
 
+func TestABatchOpenedByHandWithNoChangeIsResetToTheDefaultBranchNotMergedWith(t *testing.T) {
+	origin := glossarytest.Origin(t, glossarytest.Root(t))
+	openByHand(t, origin, "ubiq/1")
+	url, root, _ := serveOrigin(t, origin, ada)
+	// A host whose git never fast-forwards would leave a merge commit on a Batch the default branch merely moved past.
+	glossarytest.Git(t, root, "config", "merge.ff", "false")
+	develop(t, origin)
+
+	assert.Contains(t, define(t, connect(t, url), "Digest", "A content hash."), "on the Batch ubiq/1.")
+	assert.Equal(t, onOrigin(t, origin, "%H", "main"), onOrigin(t, origin, "%P", "ubiq/1"))
+}
+
 func TestABatchOpenedByHandAfterAMergeIsNeverTakenAsMerged(t *testing.T) {
 	for style, merge := range mergeStyles {
 		t.Run(style, func(t *testing.T) {

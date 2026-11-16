@@ -145,9 +145,11 @@ func (r *Repository) land(author Identity, apply func() (Commit, error)) (Landed
 }
 
 // prepare fetches origin and checks out the open Batch, ubiq/<n> with the highest n on origin, or ubiq/1 from the
-// default branch when origin has none, with the default branch merged in. A Batch that holds a Change and then
-// differs from the default branch in nothing a Maintainer has merged, so ubiq/<n+1> opens from the default branch.
-// It returns the Batch's name.
+// default branch when origin has none, with the default branch merged in. A Batch that holds no Change and that the
+// default branch has moved past, as one a Maintainer opened by hand, is reset to the default branch and reused
+// instead; one with commits of its own but no Change keeps them and has the default branch merged in. A Batch that
+// holds a Change and then differs from the default branch in nothing a Maintainer has merged, so ubiq/<n+1> opens
+// from the default branch. It returns the Batch's name.
 func (r *Repository) prepare() (string, error) {
 	if _, err := r.git(nil, "fetch", "--quiet", "--prune", "origin"); err != nil {
 		return "", err
@@ -170,7 +172,15 @@ func (r *Repository) prepare() (string, error) {
 		return r.checkout(prefix+"1", "origin/"+main)
 	}
 	n := slices.Max(numbers)
-	batch, err := r.checkout(prefix+strconv.Itoa(n), "origin/"+prefix+strconv.Itoa(n))
+	open := prefix + strconv.Itoa(n)
+	held, err := r.holdsChange(n, numbers)
+	if err != nil {
+		return "", err
+	}
+	if !held && r.ancestor("origin/"+open, "origin/"+main) {
+		return r.checkout(open, "origin/"+main)
+	}
+	batch, err := r.checkout(open, "origin/"+open)
 	if err != nil {
 		return "", err
 	}
@@ -183,15 +193,20 @@ func (r *Repository) prepare() (string, error) {
 		return "", fmt.Errorf("The Batch %s conflicts with the default branch %s in %s, so Changes are refused until "+
 			"a Maintainer merges %s into %s and pushes.", batch, main, prose.List(strings.Fields(files)), main, batch)
 	}
+	if !held {
+		return batch, nil
+	}
 	same, err := r.sameTree("HEAD", "origin/"+main)
 	if err != nil || !same {
 		return batch, err
 	}
-	held, err := r.holdsChange(n, numbers)
-	if err != nil || !held {
-		return batch, err
-	}
 	return r.checkout(prefix+strconv.Itoa(n+1), "origin/"+main)
+}
+
+// ancestor tells whether commit a is b or one of b's ancestors.
+func (r *Repository) ancestor(a, b string) bool {
+	_, err := r.git(nil, "merge-base", "--is-ancestor", a, b)
+	return err == nil
 }
 
 // sameTree tells whether two commits hold the same files.
