@@ -37,11 +37,7 @@ func New(o Options) http.Handler {
 	mux.HandleFunc("GET /{$}", o.page)
 	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server {
-			var opts []mcpserver.Option
-			if b := branch(o.Root); b != "" {
-				opts = append(opts, mcpserver.Reads(b))
-			}
-			s := mcpserver.New(o.Root, o.Version, o.People, opts...)
+			s := mcpserver.New(o.Root, o.Version, o.People, branch(o.Root))
 			o.addWriteTools(s)
 			return s
 		},

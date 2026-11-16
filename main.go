@@ -159,7 +159,7 @@ func runMCP(args []string, stdin io.Reader, stdout, status io.Writer) error {
 		return err
 	}
 	t := &mcp.IOTransport{Reader: io.NopCloser(stdin), Writer: nopWriteCloser{stdout}}
-	return mcpserver.New(abs, version(), person.Git(abs)).Run(context.Background(), t)
+	return mcpserver.New(abs, version(), person.Git(abs), "").Run(context.Background(), t)
 }
 
 type nopWriteCloser struct{ io.Writer }

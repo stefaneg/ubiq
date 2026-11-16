@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -18,7 +16,9 @@ import (
 	"github.com/stefaneg/ubiq/internal/health"
 	"github.com/stefaneg/ubiq/internal/layout"
 	"github.com/stefaneg/ubiq/internal/lookup"
+	"github.com/stefaneg/ubiq/internal/mcpserver"
 	"github.com/stefaneg/ubiq/internal/person"
+	"github.com/stefaneg/ubiq/internal/prose"
 )
 
 const defineDescription = `Define a new Term in this repository's glossary. Write the definition as plain text: every ` +
@@ -80,67 +80,43 @@ type recordInput struct {
 	Text  string `json:"text" jsonschema:"the ADR's paragraphs, as plain text"`
 }
 
+// term is the Term an input names, written as the Agent wrote it.
+func (in defineInput) term() layout.Term {
+	return layout.Term{Name: in.Name, Definition: in.Definition, Avoid: in.Avoid, Cluster: in.Cluster}
+}
+
+func (in reviseInput) term() layout.Term {
+	return layout.Term{Name: in.Name, Definition: in.Definition, Avoid: in.Avoid, Cluster: in.Cluster}
+}
+
 // addWriteTools adds the four write tools to s. They are listed for every Person; a Reader's call is refused.
 func (o Options) addWriteTools(s *mcp.Server) {
 	write := &mcp.ToolAnnotations{DestructiveHint: new(bool), OpenWorldHint: new(bool)}
 	destructive := &mcp.ToolAnnotations{OpenWorldHint: new(bool)}
-	mcp.AddTool(s, &mcp.Tool{Name: "define_term", Description: defineDescription, Annotations: write},
-		func(_ context.Context, req *mcp.CallToolRequest, in defineInput) (*mcp.CallToolResult, any, error) {
-			p, err := o.writer(req)
-			if err != nil {
-				return nil, nil, err
-			}
-			out, err := o.define(p, in)
-			if err != nil {
-				return nil, nil, err
-			}
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
-		})
-	mcp.AddTool(s, &mcp.Tool{Name: "revise_term", Description: reviseDescription, Annotations: destructive},
-		func(_ context.Context, req *mcp.CallToolRequest, in reviseInput) (*mcp.CallToolResult, any, error) {
-			p, err := o.writer(req)
-			if err != nil {
-				return nil, nil, err
-			}
-			out, err := o.revise(p, in)
-			if err != nil {
-				return nil, nil, err
-			}
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
-		})
-	mcp.AddTool(s, &mcp.Tool{Name: "remove_term", Description: removeDescription, Annotations: destructive},
-		func(_ context.Context, req *mcp.CallToolRequest, in removeInput) (*mcp.CallToolResult, any, error) {
-			p, err := o.writer(req)
-			if err != nil {
-				return nil, nil, err
-			}
-			out, err := o.remove(p, in)
-			if err != nil {
-				return nil, nil, err
-			}
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
-		})
-	mcp.AddTool(s, &mcp.Tool{Name: "record_adr", Description: recordDescription, Annotations: write},
-		func(_ context.Context, req *mcp.CallToolRequest, in recordInput) (*mcp.CallToolResult, any, error) {
-			p, err := o.writer(req)
-			if err != nil {
-				return nil, nil, err
-			}
-			out, err := o.record(p, in)
-			if err != nil {
-				return nil, nil, err
-			}
-			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
-		})
+	addWriteTool(o, s, &mcp.Tool{Name: "define_term", Description: defineDescription, Annotations: write}, o.define)
+	addWriteTool(o, s, &mcp.Tool{Name: "revise_term", Description: reviseDescription, Annotations: destructive}, o.revise)
+	addWriteTool(o, s, &mcp.Tool{Name: "remove_term", Description: removeDescription, Annotations: destructive}, o.remove)
+	addWriteTool(o, s, &mcp.Tool{Name: "record_adr", Description: recordDescription, Annotations: write}, o.record)
+}
+
+// addWriteTool adds tool to s, answering a Writer's call with what run answers and refusing anyone else's.
+func addWriteTool[In any](o Options, s *mcp.Server, tool *mcp.Tool, run func(person.Person, In) (string, error)) {
+	mcp.AddTool(s, tool, func(_ context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, any, error) {
+		p, err := o.writer(req)
+		if err != nil {
+			return nil, nil, err
+		}
+		out, err := run(p, in)
+		if err != nil {
+			return nil, nil, err
+		}
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
+	})
 }
 
 // writer is the Person calling, refused unless a Writer.
 func (o Options) writer(req *mcp.CallToolRequest) (person.Person, error) {
-	var header http.Header
-	if req.Extra != nil {
-		header = req.Extra.Header
-	}
-	p, err := o.People.Resolve(header)
+	p, err := o.People.Resolve(mcpserver.Header(req))
 	if err != nil {
 		return person.Person{}, err
 	}
@@ -155,64 +131,90 @@ func (o Options) writer(req *mcp.CallToolRequest) (person.Person, error) {
 	return p, nil
 }
 
-// define lands t as a new Term in the open Batch and answers the Term as it now reads, the commit, the Batch and the
-// Findings the Change introduced.
-func (o Options) define(p person.Person, in defineInput) (string, error) {
-	t := layout.Term{Name: strings.TrimSpace(in.Name), Definition: in.Definition, Avoid: in.Avoid, Cluster: in.Cluster}
-	if t.Name == "" {
-		return "", errors.New("The Term's name is empty.")
-	}
-	if strings.TrimSpace(t.Definition) == "" {
-		return "", fmt.Errorf("The definition of %s is empty.", t.Name)
-	}
+// change is what one write tool changes: the new text of each file, by path relative to the root, the commit's
+// subject, and what the log line names, a Term or an ADR's path.
+type change struct {
+	files   map[string]string
+	subject string
+	named   string
+}
+
+// landed is a Change as it landed: its Batch and commit, the Domain Model after it, and the Findings it introduced.
+type landed struct {
+	batch.Landed
+	after      *glossary.Model
+	introduced []health.Finding
+}
+
+// land lands one Change in the open Batch for p, the one flow every write tool shares. run gets the Domain Model as
+// read and answers what to change; an error it answers is refused as a sentence. The Change is refused, and nothing
+// lands, when the Domain Model no longer reads after it.
+func (o Options) land(p person.Person, tool string, run func(before *glossary.Model) (change, error)) (landed, error) {
 	if o.Batches == nil {
-		return "", errors.New("This Server has no origin to land Changes in.")
+		return landed{}, errors.New("This Server has no origin to land Changes in.")
 	}
-	var entry string
-	var introduced []health.Finding
-	landed, err := o.Batches.Change(batch.Identity{Name: p.Name, Email: p.Email}, func() (batch.Commit, error) {
+	var l landed
+	var c change
+	at, err := o.Batches.Change(batch.Identity{Name: p.Name, Email: p.Email}, func() (batch.Commit, error) {
 		before, err := glossary.Load(o.Root)
 		if err != nil {
 			return batch.Commit{}, err
 		}
-		c, err := contextNamed(before, in.Context)
-		if err != nil {
-			return batch.Commit{}, err
+		if c, err = run(before); err != nil {
+			return batch.Commit{}, errors.New(prose.Sentence(err.Error()))
 		}
-		t.Context = c.Key
-		path := filepath.Join(o.Root, filepath.FromSlash(c.Path))
-		text, err := os.ReadFile(path)
-		if err != nil {
-			return batch.Commit{}, err
+		var paths []string
+		for path, text := range c.files {
+			file := filepath.Join(o.Root, filepath.FromSlash(path))
+			if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+				return batch.Commit{}, err
+			}
+			if err := os.WriteFile(file, []byte(text), 0o644); err != nil {
+				return batch.Commit{}, err
+			}
+			paths = append(paths, path)
 		}
-		out, err := layout.Define(string(text), before, t)
-		if err != nil {
-			return batch.Commit{}, errors.New(sentence(err.Error()))
+		slices.Sort(paths)
+		if l.after, err = glossary.Load(o.Root); err != nil {
+			return batch.Commit{}, fmt.Errorf("The Domain Model would no longer read after the Change %q: %s.", c.subject, err)
 		}
-		if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
-			return batch.Commit{}, err
-		}
-		after, err := glossary.Load(o.Root)
-		if err != nil {
-			return batch.Commit{}, fmt.Errorf("The Glossary would no longer read after defining %s: %s.", t.Name, err)
-		}
-		entry = termEntry(after, c.Key, t.Name)
-		introduced = newFindings(health.Check(before), health.Check(after))
-		return batch.Commit{Subject: "Define Term " + t.Name, Paths: []string{c.Path}}, nil
+		l.introduced = newFindings(health.Check(before), health.Check(l.after))
+		return batch.Commit{Subject: c.subject, Paths: paths}, nil
 	})
 	if err != nil {
-		return "", err
+		return landed{}, err
 	}
-	fmt.Fprintf(o.Log, "Change define_term %s by %s: %s on %s\n", t.Name, label(p), landed.Commit, landed.Batch)
+	l.Landed = at
+	fmt.Fprintf(o.Log, "Change %s %s by %s: %s on %s\n", tool, c.named, label(p), at.Commit, at.Batch)
+	return l, nil
+}
+
+// answer is a write tool's answer: what it did, with the commit and the Batch, then body, the Term or ADR as it now
+// reads, when not empty, then the Findings the Change introduced.
+func (l landed) answer(did, body string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Defined %s in commit %s on the Batch %s.\n\n%s", t.Name, landed.Commit, landed.Batch, entry)
-	if len(introduced) == 0 {
+	fmt.Fprintf(&b, "%s in commit %s on the Batch %s.\n", did, l.Commit, l.Batch)
+	if body != "" {
+		b.WriteString("\n" + body)
+	}
+	if len(l.introduced) == 0 {
 		b.WriteString("\nThe Change introduced no Findings.\n")
 	} else {
 		b.WriteString("\nFindings the Change introduced:\n")
-		health.Write(&b, introduced)
+		health.Write(&b, l.introduced)
 	}
-	return b.String(), nil
+	return b.String()
+}
+
+// lookedUp is the Term of the Context with key named named as lookup writes it, or empty when there is none.
+func (l landed) lookedUp(key, named string) string {
+	t := l.after.TermNamed(key, named)
+	if t == nil {
+		return ""
+	}
+	var b strings.Builder
+	lookup.New(l.after).WriteTerm(&b, t.ID)
+	return b.String()
 }
 
 // contextNamed is the Context named by key or name, regardless of case, or the only Context when named is empty.
@@ -229,21 +231,9 @@ func contextNamed(model *glossary.Model, named string) (glossary.Context, error)
 		if len(model.Contexts) == 1 {
 			return model.Contexts[0], nil
 		}
-		return glossary.Context{}, fmt.Errorf("Name the Context, since this repository has %s.", list(names))
+		return glossary.Context{}, fmt.Errorf("name the Context, since this repository has %s", prose.List(names))
 	}
-	return glossary.Context{}, fmt.Errorf("No Context %s; this repository has %s.", named, list(names))
-}
-
-// termEntry is the Term named in the Context with key as lookup writes it.
-func termEntry(model *glossary.Model, key, named string) string {
-	for id, t := range model.Terms {
-		if t.Context == key && strings.EqualFold(t.Name, named) {
-			var b strings.Builder
-			lookup.New(model).WriteTerm(&b, id)
-			return b.String()
-		}
-	}
-	return ""
+	return glossary.Context{}, fmt.Errorf("no Context %s; this repository has %s", named, prose.List(names))
 }
 
 // newFindings is the Findings in after that before did not have, matched by rule and name since lines move.
@@ -272,16 +262,8 @@ func called(p person.Person) string {
 	return "This Person"
 }
 
-// list joins names as prose: "a", "a and b", "a, b and c".
-func list(names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
-}
-
-// sentence is s with a capital first letter and a full stop.
-func sentence(s string) string {
-	r, n := utf8.DecodeRuneInString(s)
-	return string(unicode.ToUpper(r)) + s[n:] + "."
+// read is the text of the file at path relative to the root.
+func (o Options) read(path string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(o.Root, filepath.FromSlash(path)))
+	return string(b), err
 }

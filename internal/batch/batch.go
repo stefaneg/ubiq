@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/stefaneg/ubiq/internal/prose"
 )
 
 // prefix names every Batch: ubiq/<n>.
@@ -179,7 +181,7 @@ func (r *Repository) prepare() (string, error) {
 			return "", fmt.Errorf("merge the default branch %s into the Batch %s: %w", main, batch, err)
 		}
 		return "", fmt.Errorf("The Batch %s conflicts with the default branch %s in %s, so Changes are refused until "+
-			"a Maintainer merges %s into %s and pushes.", batch, main, list(strings.Fields(files)), main, batch)
+			"a Maintainer merges %s into %s and pushes.", batch, main, prose.List(strings.Fields(files)), main, batch)
 	}
 	same, err := r.sameTree("HEAD", "origin/"+main)
 	if err != nil || !same {
@@ -258,14 +260,6 @@ func (r *Repository) commit(author Identity, c Commit) (string, error) {
 func (r *Repository) discard() {
 	_, _ = r.git(nil, "reset", "--quiet", "--hard")
 	_, _ = r.git(nil, "clean", "--quiet", "--force", "-d")
-}
-
-// list joins names as prose: "a", "a and b", "a, b and c".
-func list(names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
 // env is the git environment variables that make id the given roles, AUTHOR or COMMITTER.

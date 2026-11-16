@@ -36,7 +36,7 @@ func connectAs(t *testing.T, root string, r person.Resolver) *mcp.ClientSession 
 	t.Helper()
 	ctx := context.Background()
 	serverT, clientT := mcp.NewInMemoryTransports()
-	ss, err := New(root, "test", r).Connect(ctx, serverT, nil)
+	ss, err := New(root, "test", r, "").Connect(ctx, serverT, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ss.Close() })
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, clientT, nil)
