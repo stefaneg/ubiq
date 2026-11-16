@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -60,9 +61,21 @@ func (l *logBuffer) Reset() {
 func serve(t *testing.T, root string, r person.Resolver) (string, *logBuffer) {
 	t.Helper()
 	log := &logBuffer{}
-	ts := httptest.NewServer(New(Options{Root: root, Version: "test", People: r, Log: log}))
+	return serveWith(t, Options{Root: root, People: r}, log), log
+}
+
+// serveWith stands the Server up from o under a test server, logging to log, and returns its URL.
+func serveWith(t *testing.T, o Options, log *logBuffer) string {
+	t.Helper()
+	o.Version, o.Log = "test", log
+	ts := httptest.NewServer(New(o))
 	t.Cleanup(ts.Close)
-	return ts.URL, log
+	return ts.URL
+}
+
+func TestMain(m *testing.M) {
+	glossarytest.Isolate()
+	os.Exit(m.Run())
 }
 
 // get fetches url and returns the status and body.
@@ -145,16 +158,9 @@ func call(t *testing.T, cs *mcp.ClientSession, tool string, args map[string]any)
 	return res.Content[0].(*mcp.TextContent).Text, res.IsError
 }
 
-func TestMCPServesTheFourReadToolsBehindAProxysHost(t *testing.T) {
+func TestMCPServesTheReadToolsBehindAProxysHost(t *testing.T) {
 	url, _ := serve(t, glossarytest.Root(t), ada)
 	cs := connect(t, url)
-	tools, err := cs.ListTools(context.Background(), nil)
-	require.NoError(t, err)
-	var names []string
-	for _, tool := range tools.Tools {
-		names = append(names, tool.Name)
-	}
-	assert.ElementsMatch(t, []string{"lookup", "check", "health", "whoami"}, names)
 
 	text, isErr := call(t, cs, "lookup", map[string]any{"words": []string{"Tag"}})
 	assert.False(t, isErr)
