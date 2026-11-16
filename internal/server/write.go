@@ -30,11 +30,20 @@ const defineDescription = `Define a new Term in this repository's glossary. Writ
 	`refuse. Refused when you are a Reader, when the Term exists in that Context, when the Context does not exist, or ` +
 	`when the name or definition is empty. Look the words up first so the definition reuses existing Terms.`
 
-const reviseDescription = `Revise a Term in this repository's glossary: replace its definition and Avoided Words in ` +
-	`full, move it to the Cluster you name, or rename it with new_name, rewriting every Reference to it. Not yet ` +
-	`available on this Server.`
+const reviseDescription = `Revise a Term in this repository's glossary. Look it up first: the definition, as plain ` +
+	`text, and the avoid list replace the Term's in full, and existing Term names in the definition become References. ` +
+	`Name a Cluster to move the Term to the end of it, creating it when it does not exist; give new_name to rename the ` +
+	`Term and rewrite every Reference to it in every glossary. Name the Context when the repository has more than one. ` +
+	`The Change lands at once as a commit authored by you in the open Batch, a ubiq/<n> branch a Maintainer merges. ` +
+	`The answer is the Term as it now reads, the commit, the Batch, and the Findings the Change introduced. Refused ` +
+	`when you are a Reader, when the Term does not exist in that Context or new_name names another that does, when the ` +
+	`Context does not exist, or when the name or definition is empty.`
 
-const removeDescription = `Remove a Term from this repository's glossary. Not yet available on this Server.`
+const removeDescription = `Remove a Term from this repository's glossary. Name the Context when the repository has ` +
+	`more than one. The Change lands at once as a commit authored by you in the open Batch, a ubiq/<n> branch a ` +
+	`Maintainer merges. The answer is the commit, the Batch, and the Findings the Change introduced, among them each ` +
+	`Unresolved Phrase where the Term was referenced, to repair with revise_term next. Refused when you are a Reader, ` +
+	`when the Term does not exist in that Context, when the Context does not exist, or when the name is empty.`
 
 const recordDescription = `Record an ADR in this repository's docs/adr: the Server numbers it, slugs the title and ` +
 	`answers its path. Not yet available on this Server.`
@@ -84,12 +93,28 @@ func (o Options) addWriteTools(s *mcp.Server) {
 		})
 	notYet := func(tool string) error { return fmt.Errorf("%s is not yet available on this Server.", tool) }
 	mcp.AddTool(s, &mcp.Tool{Name: "revise_term", Description: reviseDescription, Annotations: destructive},
-		func(context.Context, *mcp.CallToolRequest, reviseInput) (*mcp.CallToolResult, any, error) {
-			return nil, nil, notYet("revise_term")
+		func(_ context.Context, req *mcp.CallToolRequest, in reviseInput) (*mcp.CallToolResult, any, error) {
+			p, err := o.writer(req)
+			if err != nil {
+				return nil, nil, err
+			}
+			out, err := o.revise(p, in)
+			if err != nil {
+				return nil, nil, err
+			}
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "remove_term", Description: removeDescription, Annotations: destructive},
-		func(context.Context, *mcp.CallToolRequest, removeInput) (*mcp.CallToolResult, any, error) {
-			return nil, nil, notYet("remove_term")
+		func(_ context.Context, req *mcp.CallToolRequest, in removeInput) (*mcp.CallToolResult, any, error) {
+			p, err := o.writer(req)
+			if err != nil {
+				return nil, nil, err
+			}
+			out, err := o.remove(p, in)
+			if err != nil {
+				return nil, nil, err
+			}
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "record_adr", Description: recordDescription, Annotations: write},
 		func(context.Context, *mcp.CallToolRequest, recordInput) (*mcp.CallToolResult, any, error) {

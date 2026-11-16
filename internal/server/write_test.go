@@ -60,9 +60,7 @@ func TestTheWriteToolsNotYetBuiltSaySo(t *testing.T) {
 	url, _ := serve(t, glossarytest.Root(t), ada)
 	cs := connect(t, url)
 	for tool, args := range map[string]map[string]any{
-		"revise_term": {"name": "Tag", "definition": "A label."},
-		"remove_term": {"name": "Tag"},
-		"record_adr":  {"title": "Pin tags", "text": "We pin tags."},
+		"record_adr": {"title": "Pin tags", "text": "We pin tags."},
 	} {
 		text, isErr := call(t, cs, tool, args)
 		assert.True(t, isErr)

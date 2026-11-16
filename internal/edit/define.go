@@ -47,32 +47,31 @@ func Define(text string, model *glossary.Model, t Term) (string, error) {
 			return "", fmt.Errorf("the Term %s already exists in %s", x.Name, model.ContextName(t.Context))
 		}
 	}
-	original := strings.Split(text, "\n")
+	entry := []string{"**" + t.Name + "**:", newReferences(model, t.Name).bold(t.Definition)}
+	if avoid := avoidLine(t.Avoid); avoid != "" {
+		entry = append(entry, avoid)
+	}
+	return place(strings.Split(text, "\n"), t.Cluster, entry), nil
+}
+
+// place puts entry, a Term's lines, into original at the end of cluster, creating cluster after the last Term and
+// before the next section when no heading names it, or after the last Term when cluster is empty; it returns the text.
+func place(original []string, cluster string, entry []string) string {
 	lines := withoutCode(original)
 	last := lastTerm(lines)
 	at := endOfLanguage(lines)
 	if last >= 0 {
 		at = entryEnd(lines, last)
 	}
-	entry := []string{"**" + t.Name + "**:", newReferences(model, t.Name).bold(t.Definition)}
-	var avoid []string
-	for _, w := range t.Avoid {
-		if w = strings.TrimSpace(w); w != "" {
-			avoid = append(avoid, w)
-		}
-	}
-	if len(avoid) > 0 {
-		entry = append(entry, "_Avoid_: "+strings.Join(avoid, ", "))
-	}
-	if t.Cluster != "" {
-		if end, ok := clusterEnd(lines, t.Cluster); ok {
+	if cluster != "" {
+		if end, ok := clusterEnd(lines, cluster); ok {
 			at = end
 		} else {
 			at = nextSection(lines, at)
-			entry = append([]string{strings.Repeat("#", clusterLevel(lines, last)) + " " + t.Cluster, ""}, entry...)
+			entry = append([]string{strings.Repeat("#", clusterLevel(lines, last)) + " " + cluster, ""}, entry...)
 		}
 	}
-	return insert(original, at, entry), nil
+	return insert(original, at, entry)
 }
 
 // code stands in for a line of fenced code: not blank, and neither a heading nor a Term's name line.
