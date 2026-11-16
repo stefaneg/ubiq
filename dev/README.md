@@ -19,7 +19,7 @@ Server's clone lives in the `ubiq-data` volume and its origin in `data/` (untrac
 in `data/origin.git`, where `git -C data/origin.git log --all` shows them. To start over, `docker compose down -v`,
 `rm -rf data`, and seed again. After changing ubiq's code, `docker compose up -d --build ubiq`.
 
-`docker compose logs -f ubiq` shows the Server's one line per request.
+`docker compose logs -f ubiq` shows the Server's one line per request and per Change.
 
 ## The Server in the stack
 
@@ -35,14 +35,13 @@ ubiq serve -root /data/repo -origin /origin.git -listen 0.0.0.0:8766 \
 It differs from production only where the stack forces it. It listens on all of its container's interfaces, since
 Pomerium reaches it across the compose network, and publishes no port, so the only way in is through the proxy. Its
 origin is a local bare repository, not HTTPS. It trusts the throwaway CA to fetch Pomerium's assertion keys, reaching
-the authenticate host through a compose network alias. The container clones the origin into `-root` before the first
-start.
+the authenticate host through a compose network alias. The Server clones the origin into `-root` on its first start
+and reuses the clone after.
 
 **Dev direct mode** needs none of this: the Server alone on the host, every request one fixed Writer.
 
 ```sh
 ./dev/seed-origin.sh
-git clone dev/data/origin.git /tmp/ubiq-direct    # the Server reuses a clone it finds
 go run . serve -root /tmp/ubiq-direct -origin dev/data/origin.git -writers dev -person "Ada Lovelace <ada@example.com>"
 ```
 
