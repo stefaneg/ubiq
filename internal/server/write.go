@@ -36,8 +36,13 @@ const reviseDescription = `Revise a Term in this repository's glossary: replace 
 
 const removeDescription = `Remove a Term from this repository's glossary. Not yet available on this Server.`
 
-const recordDescription = `Record an ADR in this repository's docs/adr: the Server numbers it, slugs the title and ` +
-	`answers its path. Not yet available on this Server.`
+const recordDescription = `Record an ADR, a decision that is hard to reverse, in this repository's docs/adr. Give a ` +
+	`short title and the text as plain paragraphs: what the context was, what was decided, and why. The Server numbers ` +
+	`the file after the highest existing ADR, slugs the title, and puts the title above the text as its heading. The ` +
+	`ADR lands at once as a commit authored by you in the open Batch, a ubiq/<n> branch a Maintainer merges, and the ` +
+	`next lookup names it beside the Terms it mentions. The answer is the ADR's path and text, the commit, the Batch, ` +
+	`and the Findings the Change introduced. Refused when you are a Reader, when the title or text is empty, or when ` +
+	`an ADR with the same slug exists.`
 
 type defineInput struct {
 	Name       string   `json:"name" jsonschema:"the Term's name, as it should be written"`
@@ -92,8 +97,16 @@ func (o Options) addWriteTools(s *mcp.Server) {
 			return nil, nil, notYet("remove_term")
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "record_adr", Description: recordDescription, Annotations: write},
-		func(context.Context, *mcp.CallToolRequest, recordInput) (*mcp.CallToolResult, any, error) {
-			return nil, nil, notYet("record_adr")
+		func(_ context.Context, req *mcp.CallToolRequest, in recordInput) (*mcp.CallToolResult, any, error) {
+			p, err := o.writer(req)
+			if err != nil {
+				return nil, nil, err
+			}
+			out, err := o.record(p, in)
+			if err != nil {
+				return nil, nil, err
+			}
+			return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: out}}}, nil, nil
 		})
 }
 
