@@ -68,7 +68,15 @@ func serve(t *testing.T, root string, r person.Resolver) (string, *logBuffer) {
 // get fetches url and returns the status and body.
 func get(t *testing.T, url string) (int, string) {
 	t.Helper()
-	res, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+	return do(t, req)
+}
+
+// do sends req and returns the status and body.
+func do(t *testing.T, req *http.Request) (int, string) {
+	t.Helper()
+	res, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
@@ -111,9 +119,15 @@ func (h hostRewriter) RoundTrip(r *http.Request) (*http.Response, error) {
 // connect opens an MCP session to the Server at url over the streamable transport, with a proxy's Host.
 func connect(t *testing.T, url string) *mcp.ClientSession {
 	t.Helper()
+	return connectVia(t, url, hostRewriter{"mcp.glossary.example.com"})
+}
+
+// connectVia opens an MCP session to the Server at url over the streamable transport, sending through rt.
+func connectVia(t *testing.T, url string, rt http.RoundTripper) *mcp.ClientSession {
+	t.Helper()
 	transport := &mcp.StreamableClientTransport{
 		Endpoint:             url + "/mcp",
-		HTTPClient:           &http.Client{Transport: hostRewriter{"mcp.glossary.example.com"}},
+		HTTPClient:           &http.Client{Transport: rt},
 		DisableStandaloneSSE: true,
 	}
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(context.Background(), transport, nil)
