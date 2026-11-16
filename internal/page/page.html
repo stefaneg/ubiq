@@ -68,6 +68,7 @@ body.dragging .handle{background:#5a7399}
 .top h1 a{color:inherit;text-decoration:none}
 .top h1 a:hover{color:var(--accent)}
 .search{position:relative;flex:1}
+.person{white-space:nowrap;color:var(--muted);font-size:.9em}
 .search input{width:100%;padding:.55em .8em;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:1em;background:var(--panel);color:var(--fg)}
 .results{position:absolute;left:0;right:0;top:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:60vh;overflow:auto;display:none}
 .results a{display:flex;justify-content:space-between;padding:.4em .8em;color:inherit;text-decoration:none}
@@ -411,6 +412,7 @@ function healthPage() {
 // ------------------------------------------------------------------ router
 const app = document.getElementById('app'), nav = app.querySelector('.nav'), body = app.querySelector('.body'), trailEl = app.querySelector('.trail'), wrap = app.querySelector('.mainwrap');
 navTree(nav); searchBox(app.querySelector('.search')); splitter(app, app.querySelector('.handle'));
+if (DATA.person) app.querySelector('.top').insertAdjacentHTML('beforeend', `<div class="person">${esc(DATA.person.name)} · ${esc(DATA.person.role)}</div>`);
 const trail = [];
 const PAGES = { check: () => checkPage(), health: () => healthPage(), map: () => mapPage() };
 function onNav() {
