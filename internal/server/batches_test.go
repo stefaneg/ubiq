@@ -174,6 +174,32 @@ func TestAChangeWhileTheBatchConflictsIsRefusedAndAResolutionLetsTheNextOneLand(
 	}
 }
 
+func TestEmptyInputIsRefusedForWhatItIsEvenWhileTheBatchConflicts(t *testing.T) {
+	origin := glossarytest.Origin(t, glossarytest.Root(t))
+	url, _, _ := serveOrigin(t, origin, ada)
+	cs := connect(t, url)
+	conflict(t, cs, origin)
+	cases := []struct {
+		tool    string
+		args    map[string]any
+		refusal string
+	}{
+		{"define_term", map[string]any{"context": "Common", "name": " ", "definition": "A hash."}, "The Term's name is empty."},
+		{"define_term", map[string]any{"context": "Common", "name": "Digest", "definition": " "}, "The definition of Digest is empty."},
+		{"revise_term", map[string]any{"context": "Common", "name": "", "definition": "A hash."}, "The Term's name is empty."},
+		{"revise_term", map[string]any{"context": "Common", "name": "Tag", "definition": ""}, "The definition of Tag is empty."},
+		{"remove_term", map[string]any{"context": "Common", "name": " "}, "The Term's name is empty."},
+		{"record_adr", map[string]any{"title": " ", "text": "We pin."}, "The ADR's title is empty."},
+		{"record_adr", map[string]any{"title": "Pin digests", "text": " "}, "The text of the ADR Pin digests is empty."},
+		{"record_adr", map[string]any{"title": "?!", "text": "We pin."}, "The title ?! has no letters or digits to name the file by."},
+	}
+	for _, c := range cases {
+		text, isErr := call(t, cs, c.tool, c.args)
+		assert.True(t, isErr, c.refusal)
+		assert.Equal(t, c.refusal, text)
+	}
+}
+
 func TestAConflictFoundAtStartupIsLoggedAndReadsKeepAnswering(t *testing.T) {
 	origin := glossarytest.Origin(t, glossarytest.Root(t))
 	first, _, _ := serveOrigin(t, origin, ada)

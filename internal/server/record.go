@@ -14,7 +14,7 @@ import (
 // path, the ADR as it now reads, the commit, the Batch and the Findings the Change introduced.
 func (o Options) record(p person.Person, in recordInput) (string, error) {
 	var file, body string
-	l, err := o.land(p, "record_adr", func(*glossary.Model) (change, error) {
+	l, err := o.land(p, "record_adr", layout.ValidADR(in.Title, in.Text), func(*glossary.Model) (change, error) {
 		existing, err := os.ReadDir(filepath.Join(o.Root, filepath.FromSlash(glossary.ADRDir)))
 		if err != nil && !os.IsNotExist(err) {
 			return change{}, err

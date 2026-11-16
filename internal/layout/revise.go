@@ -14,12 +14,12 @@ import (
 // Refused when t's name or definition is empty, when model has no Context t names or no Term of t's name in it, or
 // when newName names another Term of that Context; names are matched regardless of case.
 func Revise(text string, model *glossary.Model, t Term, newName string) (string, error) {
+	if err := t.Valid(); err != nil {
+		return "", err
+	}
 	term, err := existing(model, t.Context, t.Name)
 	if err != nil {
 		return "", err
-	}
-	if strings.TrimSpace(t.Definition) == "" {
-		return "", fmt.Errorf("the definition of %s is empty", term.Name)
 	}
 	t.Name = term.Name
 	if newName = strings.TrimSpace(newName); newName != "" {

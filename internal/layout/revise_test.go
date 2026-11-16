@@ -135,7 +135,7 @@ func TestReviseRefusesAnEmptyName(t *testing.T) {
 
 func TestReviseRefusesAnEmptyDefinition(t *testing.T) {
 	_, err := layout.Revise(shop, load(t, shop), layout.Term{Context: "shop", Name: "customer", Definition: " \n"}, "")
-	require.EqualError(t, err, "the definition of Customer is empty")
+	require.EqualError(t, err, "the definition of customer is empty")
 }
 
 func TestReviseRefusesAnUnknownContextNamingIt(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 func (o Options) define(p person.Person, in defineInput) (string, error) {
 	t := in.term()
 	t.Name = strings.TrimSpace(t.Name)
-	l, err := o.land(p, "define_term", func(before *glossary.Model) (change, error) {
+	l, err := o.land(p, "define_term", t.Valid(), func(before *glossary.Model) (change, error) {
 		c, err := contextNamed(before, in.Context)
 		if err != nil {
 			return change{}, err
@@ -43,7 +43,7 @@ func (o Options) define(p person.Person, in defineInput) (string, error) {
 func (o Options) revise(p person.Person, in reviseInput) (string, error) {
 	t := in.term()
 	var old, name string
-	l, err := o.land(p, "revise_term", func(before *glossary.Model) (change, error) {
+	l, err := o.land(p, "revise_term", t.Valid(), func(before *glossary.Model) (change, error) {
 		c, err := contextNamed(before, in.Context)
 		if err != nil {
 			return change{}, err
@@ -82,7 +82,7 @@ func (o Options) revise(p person.Person, in reviseInput) (string, error) {
 // the Change introduced, among them each Unresolved Phrase the removal left.
 func (o Options) remove(p person.Person, in removeInput) (string, error) {
 	var name string
-	l, err := o.land(p, "remove_term", func(before *glossary.Model) (change, error) {
+	l, err := o.land(p, "remove_term", layout.ValidName(in.Name), func(before *glossary.Model) (change, error) {
 		c, err := contextNamed(before, in.Context)
 		if err != nil {
 			return change{}, err

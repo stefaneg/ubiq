@@ -146,10 +146,14 @@ type landed struct {
 	introduced []health.Finding
 }
 
-// land lands one Change in the open Batch for p, the one flow every write tool shares. run gets the Domain Model as
-// read and answers what to change; an error it answers is refused as a sentence. The Change is refused, and nothing
-// lands, when the Domain Model no longer reads after it.
-func (o Options) land(p person.Person, tool string, run func(before *glossary.Model) (change, error)) (landed, error) {
+// land lands one Change in the open Batch for p, the one flow every write tool shares. valid is why the input is
+// refused, before the repository is locked or the Batch prepared, or nil. run gets the Domain Model as read and
+// answers what to change; an error it answers is refused as a sentence. The Change is refused, and nothing lands,
+// when the Domain Model no longer reads after it.
+func (o Options) land(p person.Person, tool string, valid error, run func(before *glossary.Model) (change, error)) (landed, error) {
+	if valid != nil {
+		return landed{}, errors.New(prose.Sentence(valid.Error()))
+	}
 	if o.Batches == nil {
 		return landed{}, errors.New("This Server has no origin to land Changes in.")
 	}

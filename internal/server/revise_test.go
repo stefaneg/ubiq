@@ -66,7 +66,7 @@ func TestAReviseOrRemoveIsRefusedNamingTheTermOrField(t *testing.T) {
 	}{
 		{"revise_term", map[string]any{"context": "Common", "name": "Digest", "definition": "A hash."}, "There is no Term Digest in Common."},
 		{"revise_term", map[string]any{"context": "Common", "name": " ", "definition": "A hash."}, "The Term's name is empty."},
-		{"revise_term", map[string]any{"context": "Common", "name": "tag", "definition": " "}, "The definition of Tag is empty."},
+		{"revise_term", map[string]any{"context": "Common", "name": "tag", "definition": " "}, "The definition of tag is empty."},
 		{"revise_term", map[string]any{"context": "Common", "name": "Tag", "new_name": "run", "definition": "A label."}, "The Term Run already exists in Common."},
 		{"revise_term", map[string]any{"context": "Billing", "name": "Tag", "definition": "A label."}, "No Context Billing; this repository has Workspace, Stacks and Common."},
 		{"revise_term", map[string]any{"name": "Tag", "definition": "A label."}, "Name the Context, since this repository has Workspace, Stacks and Common."},
