@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,7 +31,10 @@ type Repository struct {
 	root      string
 	committer Identity
 
-	mu sync.Mutex // one Change at a time
+	log io.Writer
+
+	mu      sync.Mutex // one Change or Refresh at a time
+	failing string     // why the open Batch last could not be prepared, empty when it could
 }
 
 // Edit is what a Change wrote to the clone: the commit's subject and the files, relative to the root, it changed.
@@ -56,7 +60,7 @@ func Open(root, origin string, committer Identity, log io.Writer) (*Repository, 
 		}
 		origin = abs
 	}
-	r := &Repository{root: root, committer: committer}
+	r := &Repository{root: root, committer: committer, log: log}
 	if _, err := os.Stat(filepath.Join(root, ".git")); err == nil {
 		url, err := r.git(nil, "config", "--get", "remote.origin.url")
 		if err != nil || url != origin {
@@ -69,10 +73,30 @@ func Open(root, origin string, committer Identity, log io.Writer) (*Repository, 
 			return nil, err
 		}
 	}
-	if _, err := r.prepare(); err != nil {
-		fmt.Fprintf(log, "prepare the open Batch: %s\n", err)
-	}
+	r.Refresh()
 	return r, nil
+}
+
+// Refresh prepares the open Batch with no Change, so that reads see what has reached origin since, the default
+// branch's commits included. A Batch that cannot be prepared is logged, once until the reason changes, and the clone
+// serves as it stands.
+func (r *Repository) Refresh() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, err := r.prepare()
+	r.note(err)
+}
+
+// note logs why the open Batch could not be prepared, unless it logged the same reason last time.
+func (r *Repository) note(err error) {
+	reason := ""
+	if err != nil {
+		reason = err.Error()
+	}
+	if reason != "" && reason != r.failing {
+		fmt.Fprintf(r.log, "prepare the open Batch: %s\n", reason)
+	}
+	r.failing = reason
 }
 
 // Change lands one Change in the open Batch: it fetches origin and checks the open Batch out with the default branch
@@ -98,6 +122,7 @@ func (e *rejectedPush) Error() string { return e.err.Error() }
 // land prepares the open Batch, runs edit and commits and pushes what it wrote.
 func (r *Repository) land(author Identity, edit func() (Edit, error)) (Landed, error) {
 	batch, err := r.prepare()
+	r.note(err)
 	if err != nil {
 		return Landed{}, err
 	}
@@ -118,7 +143,9 @@ func (r *Repository) land(author Identity, edit func() (Edit, error)) (Landed, e
 }
 
 // prepare fetches origin and checks out the open Batch, ubiq/<n> with the highest n on origin, or ubiq/1 from the
-// default branch when origin has none, with the default branch merged in. It returns the Batch's name.
+// default branch when origin has none, with the default branch merged in. A Batch that holds a Change and then
+// differs from the default branch in nothing a Maintainer has merged, so ubiq/<n+1> opens from the default branch.
+// It returns the Batch's name.
 func (r *Repository) prepare() (string, error) {
 	if _, err := r.git(nil, "fetch", "--quiet", "--prune", "origin"); err != nil {
 		return "", err
@@ -131,24 +158,62 @@ func (r *Repository) prepare() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	n := 0
+	var numbers []int
 	for _, ref := range strings.Fields(refs) {
-		if i, err := strconv.Atoi(strings.TrimPrefix(ref, prefix)); err == nil && i > n {
-			n = i
+		if i, err := strconv.Atoi(strings.TrimPrefix(ref, prefix)); err == nil && i > 0 {
+			numbers = append(numbers, i)
 		}
 	}
-	if n == 0 {
+	if len(numbers) == 0 {
 		return r.checkout(prefix+"1", "origin/"+main)
 	}
+	n := slices.Max(numbers)
 	batch, err := r.checkout(prefix+strconv.Itoa(n), "origin/"+prefix+strconv.Itoa(n))
 	if err != nil {
 		return "", err
 	}
 	if _, err := r.git(r.committer.env("COMMITTER", "AUTHOR"), "merge", "--quiet", "--no-edit", "origin/"+main); err != nil {
+		files, _ := r.git(nil, "diff", "--name-only", "--diff-filter=U")
 		_, _ = r.git(nil, "merge", "--abort")
-		return "", fmt.Errorf("merge the default branch %s into the Batch %s: %w", main, batch, err)
+		if files == "" {
+			return "", fmt.Errorf("merge the default branch %s into the Batch %s: %w", main, batch, err)
+		}
+		return "", fmt.Errorf("The Batch %s conflicts with the default branch %s in %s, so Changes are refused until "+
+			"a Maintainer merges %s into %s and pushes.", batch, main, list(strings.Fields(files)), main, batch)
 	}
-	return batch, nil
+	same, err := r.sameTree("HEAD", "origin/"+main)
+	if err != nil || !same {
+		return batch, err
+	}
+	held, err := r.holdsChange(n, numbers)
+	if err != nil || !held {
+		return batch, err
+	}
+	return r.checkout(prefix+strconv.Itoa(n+1), "origin/"+main)
+}
+
+// sameTree tells whether two commits hold the same files.
+func (r *Repository) sameTree(a, b string) (bool, error) {
+	trees, err := r.git(nil, "rev-parse", a+"^{tree}", b+"^{tree}")
+	if err != nil {
+		return false, err
+	}
+	ids := strings.Fields(trees)
+	return len(ids) == 2 && ids[0] == ids[1], nil
+}
+
+// holdsChange tells whether the Batch ubiq/<n> on origin has a commit the Server committed that is its own: one no
+// earlier Batch among numbers reaches, as a Batch opened by hand from the default branch after a merge would.
+func (r *Repository) holdsChange(n int, numbers []int) (bool, error) {
+	args := []string{"rev-list", "-n1", "--fixed-strings", "--committer=<" + r.committer.Email + ">",
+		"origin/" + prefix + strconv.Itoa(n), "--not"}
+	for _, i := range numbers {
+		if i < n {
+			args = append(args, "origin/"+prefix+strconv.Itoa(i))
+		}
+	}
+	out, err := r.git(nil, args...)
+	return out != "", err
 }
 
 // defaultBranch is the branch origin's HEAD points at, asked of origin since a fetch does not refresh it.
@@ -193,6 +258,14 @@ func (r *Repository) commit(author Identity, e Edit) (string, error) {
 func (r *Repository) discard() {
 	_, _ = r.git(nil, "reset", "--quiet", "--hard")
 	_, _ = r.git(nil, "clean", "--quiet", "--force", "-d")
+}
+
+// list joins names as prose: "a", "a and b", "a, b and c".
+func list(names []string) string {
+	if len(names) < 2 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
 // env is the git environment variables that make id the given roles, AUTHOR or COMMITTER.

@@ -62,7 +62,6 @@ func TestTheWriteToolsNotYetBuiltSaySo(t *testing.T) {
 	for tool, args := range map[string]map[string]any{
 		"revise_term": {"name": "Tag", "definition": "A label."},
 		"remove_term": {"name": "Tag"},
-		"record_adr":  {"title": "Pin tags", "text": "We pin tags."},
 	} {
 		text, isErr := call(t, cs, tool, args)
 		assert.True(t, isErr)

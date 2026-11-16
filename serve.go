@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/stefaneg/ubiq/internal/batch"
 	"github.com/stefaneg/ubiq/internal/person"
@@ -71,9 +72,18 @@ func runServe(args []string, status io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("ubiq serve: %w.", err)
 	}
+	go func() {
+		for range time.Tick(refreshEvery) {
+			repo.Refresh()
+		}
+	}()
 	h := server.New(server.Options{Root: abs, Version: version(), People: people, Writers: rule, Batches: repo, Log: status})
 	return http.Serve(l, h)
 }
+
+// refreshEvery is how often the Server prepares the open Batch with no Change, so that developers' commits on the
+// default branch reach the page and Lookups without anyone's action.
+const refreshEvery = 30 * time.Second
 
 // resolver is the Person resolver the flags ask for: the assertion verifier for the keys at keys, trusting the CA
 // file ca when given, or the fixed Person of dev direct mode.
