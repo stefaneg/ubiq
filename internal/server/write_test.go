@@ -56,19 +56,6 @@ func TestTheFourWriteToolsAreListedForAReaderAsWritesBesideTheReadTools(t *testi
 	}, readOnly)
 }
 
-func TestTheWriteToolsNotYetBuiltSaySo(t *testing.T) {
-	url, _ := serve(t, glossarytest.Root(t), ada)
-	cs := connect(t, url)
-	for tool, args := range map[string]map[string]any{
-		"revise_term": {"name": "Tag", "definition": "A label."},
-		"remove_term": {"name": "Tag"},
-	} {
-		text, isErr := call(t, cs, tool, args)
-		assert.True(t, isErr)
-		assert.Equal(t, tool+" is not yet available on this Server.", text)
-	}
-}
-
 func TestADefineByAWriterLandsOneCommitOnTheFirstBatch(t *testing.T) {
 	origin := glossarytest.Origin(t, glossarytest.Root(t))
 	main := onOrigin(t, origin, "%H", "main")
