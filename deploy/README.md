@@ -56,7 +56,15 @@ The instance goes in the region's default VPC.
 
    Put `origin` (the repository's https URL), `push_account`, `push_token` and `committer` in `terraform.tfvars`.
 
-4. **Bake**, from the repository root:
+4. **Keep merged Batches.** The Server tells a merged Batch from one a Maintainer opened by hand only by the earlier
+   `ubiq/<n>` branches on origin, so Maintainers keep every merged `ubiq/*` branch. On GitHub, turn off
+   "Automatically delete head branches" in the repository's settings, or protect `ubiq/*` from deletion with a
+   ruleset; on GitLab, turn off "Enable 'Delete source branch' option by default" and leave the option unticked on
+   each merge request from a Batch. When merged Batches are deleted anyway, a Batch opened by hand afterwards is taken
+   as merged and skipped, so the next Change opens the Batch numbered after it; and once no `ubiq/*` branch is left,
+   numbering starts again at `ubiq/1`, a name the forge may still show on the first Batch's old pull request.
+
+5. **Bake**, from the repository root:
 
    ```sh
    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o deploy/build/ubiq .
@@ -67,9 +75,9 @@ The instance goes in the region's default VPC.
 
    The image is named `ubiq-<timestamp>`; Terraform takes the newest one unless `ami` is set.
 
-5. **Apply**: `cd deploy/terraform && terraform apply`. The outputs are the page, the MCP endpoint and the instance.
+6. **Apply**: `cd deploy/terraform && terraform apply`. The outputs are the page, the MCP endpoint and the instance.
 
-6. **DNS**, only when a domain is used without `route53_zone_id`: a wildcard `A` record `*.<domain>` to the
+7. **DNS**, only when a domain is used without `route53_zone_id`: a wildcard `A` record `*.<domain>` to the
    `public_ip` output. With a zone, Terraform writes it; with no domain, sslip.io answers by itself.
 
 First boot takes a minute or two after the instance is up, then Pomerium fetches Let's Encrypt certificates for
@@ -101,7 +109,7 @@ and per Change).
 A new ubiq binary, a new Pomerium, a new push token, a new Identity Provider secret, a changed Writer Rule: change the
 input and replace the instance.
 
-1. If the binary or the image changed: build and `packer build` as in step 4.
+1. If the binary or the image changed: build and `packer build` as in Bake above.
 2. Change `terraform.tfvars` if a variable changed.
 3. `terraform apply`. A new image or new user-data replaces the instance; the Elastic IP, and so the hostnames, stay.
 

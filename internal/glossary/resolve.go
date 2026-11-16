@@ -383,7 +383,11 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: r.renderIntro(rc.intro, rc.key)}
 		for _, cname := range rc.clusterOrder {
 			cl := rc.clusters[cname]
-			cc := Cluster{Key: slug(cname), Name: cname, Intro: r.renderIntro(cl.intro, rc.key)}
+			shown := cname
+			if shown == "" {
+				shown = General
+			}
+			cc := Cluster{Key: slug(shown), Name: shown, Intro: r.renderIntro(cl.intro, rc.key)}
 			for _, t := range cl.terms {
 				id := rc.key + "/" + slug(t.name)
 				term := m.Terms[id]
@@ -401,7 +405,7 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 		r.file = rc.path
 		m.Statements = append(m.Statements, r.renderStatements(rc.key, rc.statements, rc.headings)...)
 	}
-	r.file = mapFile
+	r.file = MapFile
 	m.Statements = append(m.Statements, r.renderStatements("", mapStatements, mapHeadings)...)
 	m.ADRs = r.renderADRs(adrs)
 	sort.Slice(m.Unresolved, func(i, j int) bool { return m.Unresolved[i].Phrase < m.Unresolved[j].Phrase })

@@ -1,6 +1,6 @@
-// Package edit changes a Glossary's text: the Agent writes plain text and this package lays the Markdown out as the
-// glossary format and docs/server.md describe. It is pure: text in, text out, no files and no git.
-package edit
+// Package layout lays a Glossary's Markdown out: the Agent writes plain text and this package turns it into the
+// glossary format's text, as docs/server.md describes. It is pure: text in, text out, no files and no git.
+package layout
 
 import (
 	"errors"
@@ -12,8 +12,8 @@ import (
 	"github.com/stefaneg/ubiq/internal/glossary"
 )
 
-// Term is what a define asks for: the Term's name, its definition in plain text, its Avoided Words, the Cluster it
-// goes under and the key of the Context whose Glossary the text is.
+// Term is a Term as an Agent writes it: its name, its definition in plain text, its Avoided Words, the Cluster it goes
+// under and the key of the Context whose Glossary the text is.
 type Term struct {
 	Context    string
 	Name       string
@@ -22,56 +22,76 @@ type Term struct {
 	Cluster    string
 }
 
+// Valid refuses a Term whose name or definition is empty, before anything reads a Glossary.
+func (t Term) Valid() error {
+	if err := ValidName(t.Name); err != nil {
+		return err
+	}
+	if strings.TrimSpace(t.Definition) == "" {
+		return fmt.Errorf("the definition of %s is empty", strings.TrimSpace(t.Name))
+	}
+	return nil
+}
+
+// ValidName refuses an empty Term name, before anything reads a Glossary.
+func ValidName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("the Term's name is empty")
+	}
+	return nil
+}
+
 var (
 	reHeading  = regexp.MustCompile(`^(#{1,6}) (.*)$`)
 	reTermLine = regexp.MustCompile(`^\*\*([^*]+)\*\*:\s*$`)
 )
 
 // Define adds t to text, the Glossary of t's Context, and returns the new text. model is the Domain Model as read.
-// Refused when t's name or definition is empty, when model has no Context t names, or when that Context already has
-// a Term of that name, regardless of case.
+// Refused when t is not valid, when model has no Context t names, or when that Context already has a Term of that
+// name, regardless of case.
 func Define(text string, model *glossary.Model, t Term) (string, error) {
+	if err := t.Valid(); err != nil {
+		return "", err
+	}
 	t.Name, t.Cluster = strings.TrimSpace(t.Name), strings.TrimSpace(t.Cluster)
-	t.Definition = strings.Join(strings.Fields(t.Definition), " ")
-	if t.Name == "" {
-		return "", errors.New("the Term's name is empty")
-	}
-	if t.Definition == "" {
-		return "", fmt.Errorf("the definition of %s is empty", t.Name)
-	}
-	if !slices.ContainsFunc(model.Contexts, func(c glossary.Context) bool { return c.Key == t.Context }) {
+	if !model.HasContext(t.Context) {
 		return "", fmt.Errorf("no Context %s", t.Context)
 	}
-	for _, x := range model.Terms {
-		if x.Context == t.Context && strings.EqualFold(x.Name, t.Name) {
-			return "", fmt.Errorf("the Term %s already exists in %s", x.Name, model.ContextName(t.Context))
-		}
+	if x := model.TermNamed(t.Context, t.Name); x != nil {
+		return "", fmt.Errorf("the Term %s already exists in %s", x.Name, model.ContextName(t.Context))
 	}
-	entry := []string{"**" + t.Name + "**:", newReferences(model, t.Name).bold(t.Definition)}
-	if avoid := avoidLine(t.Avoid); avoid != "" {
-		entry = append(entry, avoid)
-	}
-	return place(strings.Split(text, "\n"), t.Cluster, entry), nil
+	return place(strings.Split(text, "\n"), t.Cluster, termLines(model, t.Name, t)), nil
 }
 
-// place puts entry, a Term's lines, into original at the end of cluster, creating cluster after the last Term and
+// termLines is the lines t is written as: its name line, its definition with every mention of a Term of model other
+// than self bolded, and its Avoid line when it has Avoided Words.
+func termLines(model *glossary.Model, self string, t Term) []string {
+	definition := strings.Join(strings.Fields(t.Definition), " ")
+	lines := []string{"**" + t.Name + "**:", newReferences(model, self).bold(definition)}
+	if avoid := avoidLine(t.Avoid); avoid != "" {
+		lines = append(lines, avoid)
+	}
+	return lines
+}
+
+// place puts block, a Term's lines, into original at the end of cluster, creating cluster after the last Term and
 // before the next section when no heading names it, or after the last Term when cluster is empty; it returns the text.
-func place(original []string, cluster string, entry []string) string {
+func place(original []string, cluster string, block []string) string {
 	lines := withoutCode(original)
 	last := lastTerm(lines)
 	at := endOfLanguage(lines)
 	if last >= 0 {
-		at = entryEnd(lines, last)
+		at = termEnd(lines, last)
 	}
 	if cluster != "" {
 		if end, ok := clusterEnd(lines, cluster); ok {
 			at = end
 		} else {
 			at = nextSection(lines, at)
-			entry = append([]string{strings.Repeat("#", clusterLevel(lines, last)) + " " + cluster, ""}, entry...)
+			block = append([]string{strings.Repeat("#", clusterLevel(lines, last)) + " " + cluster, ""}, block...)
 		}
 	}
-	return insert(original, at, entry)
+	return insert(original, at, block)
 }
 
 // code stands in for a line of fenced code: not blank, and neither a heading nor a Term's name line.
@@ -100,7 +120,7 @@ func withoutCode(lines []string) []string {
 	return out
 }
 
-// lastTerm is the index of the name line of the last Term entry of lines.
+// lastTerm is the index of the name line of the last Term of lines.
 func lastTerm(lines []string) int {
 	last := -1
 	for i, ln := range lines {
@@ -159,9 +179,9 @@ func clusterEnd(lines []string, cluster string) (int, bool) {
 	return 0, false
 }
 
-// entryEnd is the index of the line after the Term entry whose name line is lines[i]: the next blank line, heading
+// termEnd is the index of the line after the Term whose name line is lines[i]: the next blank line, heading
 // or name line.
-func entryEnd(lines []string, i int) int {
+func termEnd(lines []string, i int) int {
 	for i++; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) == "" || reHeading.MatchString(lines[i]) || reTermLine.MatchString(lines[i]) {
 			break

@@ -106,6 +106,18 @@ func TestABatchOpenedByHandWithNoChangeIsReusedFromTheDefaultBranch(t *testing.T
 	assert.Equal(t, onOrigin(t, origin, "%H", "main"), onOrigin(t, origin, "%P", "ubiq/1"))
 }
 
+func TestABatchOpenedByHandWithNoChangeIsResetToTheDefaultBranchNotMergedWith(t *testing.T) {
+	origin := glossarytest.Origin(t, glossarytest.Root(t))
+	openByHand(t, origin, "ubiq/1")
+	url, root, _ := serveOrigin(t, origin, ada)
+	// A host whose git never fast-forwards would leave a merge commit on a Batch the default branch merely moved past.
+	glossarytest.Git(t, root, "config", "merge.ff", "false")
+	develop(t, origin)
+
+	assert.Contains(t, define(t, connect(t, url), "Digest", "A content hash."), "on the Batch ubiq/1.")
+	assert.Equal(t, onOrigin(t, origin, "%H", "main"), onOrigin(t, origin, "%P", "ubiq/1"))
+}
+
 func TestABatchOpenedByHandAfterAMergeIsNeverTakenAsMerged(t *testing.T) {
 	for style, merge := range mergeStyles {
 		t.Run(style, func(t *testing.T) {
@@ -171,6 +183,32 @@ func TestAChangeWhileTheBatchConflictsIsRefusedAndAResolutionLetsTheNextOneLand(
 	glossary := glossarytest.Git(t, "", "--git-dir", origin, "show", "ubiq/1:GLOSSARY.md")
 	for _, term := range []string{"**Digest**", "**Mirror**", "**Registry**"} {
 		assert.Contains(t, glossary, term)
+	}
+}
+
+func TestEmptyInputIsRefusedForWhatItIsEvenWhileTheBatchConflicts(t *testing.T) {
+	origin := glossarytest.Origin(t, glossarytest.Root(t))
+	url, _, _ := serveOrigin(t, origin, ada)
+	cs := connect(t, url)
+	conflict(t, cs, origin)
+	cases := []struct {
+		tool    string
+		args    map[string]any
+		refusal string
+	}{
+		{"define_term", map[string]any{"context": "Common", "name": " ", "definition": "A hash."}, "The Term's name is empty."},
+		{"define_term", map[string]any{"context": "Common", "name": "Digest", "definition": " "}, "The definition of Digest is empty."},
+		{"revise_term", map[string]any{"context": "Common", "name": "", "definition": "A hash."}, "The Term's name is empty."},
+		{"revise_term", map[string]any{"context": "Common", "name": "Tag", "definition": ""}, "The definition of Tag is empty."},
+		{"remove_term", map[string]any{"context": "Common", "name": " "}, "The Term's name is empty."},
+		{"record_adr", map[string]any{"title": " ", "text": "We pin."}, "The ADR's title is empty."},
+		{"record_adr", map[string]any{"title": "Pin digests", "text": " "}, "The text of the ADR Pin digests is empty."},
+		{"record_adr", map[string]any{"title": "?!", "text": "We pin."}, "The title ?! has no letters or digits to name the file by."},
+	}
+	for _, c := range cases {
+		text, isErr := call(t, cs, c.tool, c.args)
+		assert.True(t, isErr, c.refusal)
+		assert.Equal(t, c.refusal, text)
 	}
 }
 

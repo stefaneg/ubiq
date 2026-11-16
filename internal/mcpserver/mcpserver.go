@@ -41,10 +41,12 @@ const checkDescription = `Check text against this repository's glossary: a doc, 
 	`the Term to use instead, and its Capitalised Phrases that match no Term, which are either missing Terms or words ` +
 	`to replace. Call it on text you wrote before you finish.`
 
-const healthDescription = `Run the Health Check on this repository's glossary: one "path:line: rule: name: note" line ` +
-	`per Finding, then a summary line counting them by rule. The rules are long (a definition over two sentences), ` +
-	`orphan (a Term nothing mentions), unmapped (a name two Contexts define with no statement relating them) and ` +
-	`unresolved (a bold phrase that names no Term). Call it after changing the glossary to find what is left to fix.`
+const healthDescription = `Run the Health Check on this repository's Domain Model: one "path:line: rule: name: note" ` +
+	`line per Finding, then a summary line counting them by rule. The Health Rules, by the rule each line names, are ` +
+	`long, a Long Definition (a Term whose definition runs over two sentences); orphan, an Orphan (a Term with no ` +
+	`Reference); unmapped, an Unmapped Name (a name two Contexts define with no Statement naming both); and ` +
+	`unresolved, an Unresolved Phrase (a bold phrase that names no Term or Context). Call it after changing a ` +
+	`Glossary to see what is left to fix.`
 
 const whoamiDescription = `Tell who this server acts for: the Person's name, email and role. Over stdio that is the ` +
 	`git identity of the working tree with role Maintainer; on the Server it is the logged-in Person, a Reader or a ` +
@@ -58,23 +60,14 @@ type checkInput struct {
 	Text string `json:"text" jsonschema:"the text to check"`
 }
 
-// Option changes the instructions a server gives its clients.
-type Option func(instructions string) string
-
-// Reads tells clients that the server reads branch of its own copy of the repository, so they do not compare its
-// answers with their own checkout.
-func Reads(branch string) Option {
-	return func(instructions string) string {
-		return instructions + ` This server reads branch ` + branch + ` of its own copy of the repository, not your ` +
-			`checkout, so its answers can differ from the files on your machine.`
-	}
-}
-
-// New returns a server for the Domain Model under root that learns the calling Person from people.
-func New(root, version string, people person.Resolver, opts ...Option) *mcp.Server {
+// New returns a server for the Domain Model under root that learns the calling Person from people. When branch is
+// not empty, the server reads that branch of its own copy of the repository, and its instructions say so, so that
+// clients do not compare its answers with their own checkout.
+func New(root, version string, people person.Resolver, branch string) *mcp.Server {
 	instructions := instructions
-	for _, o := range opts {
-		instructions = o(instructions)
+	if branch != "" {
+		instructions += ` This server reads branch ` + branch + ` of its own copy of the repository, not your ` +
+			`checkout, so its answers can differ from the files on your machine.`
 	}
 	s := mcp.NewServer(&mcp.Implementation{Name: "ubiq", Version: version}, &mcp.ServerOptions{Instructions: instructions})
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: new(bool)}
@@ -121,17 +114,21 @@ func New(root, version string, people person.Resolver, opts ...Option) *mcp.Serv
 		})
 	mcp.AddTool(s, &mcp.Tool{Name: "whoami", Description: whoamiDescription, Annotations: readOnly},
 		func(_ context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
-			var header http.Header
-			if req.Extra != nil {
-				header = req.Extra.Header
-			}
-			p, err := people.Resolve(header)
+			p, err := people.Resolve(Header(req))
 			if err != nil {
 				return nil, nil, err
 			}
 			return text(fmt.Sprintf("name: %s\nemail: %s\nrole: %s\n", orUnset(p.Name), orUnset(p.Email), p.Role)), nil, nil
 		})
 	return s
+}
+
+// Header is the HTTP headers a tool call came with, nil in stdio.
+func Header(req *mcp.CallToolRequest) http.Header {
+	if req.Extra == nil {
+		return nil
+	}
+	return req.Extra.Header
 }
 
 func load(root string) (*glossary.Model, error) {

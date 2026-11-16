@@ -36,7 +36,7 @@ func connectAs(t *testing.T, root string, r person.Resolver) *mcp.ClientSession 
 	t.Helper()
 	ctx := context.Background()
 	serverT, clientT := mcp.NewInMemoryTransports()
-	ss, err := New(root, "test", r).Connect(ctx, serverT, nil)
+	ss, err := New(root, "test", r, "").Connect(ctx, serverT, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ss.Close() })
 	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, clientT, nil)
@@ -86,6 +86,25 @@ The images waiting to be pushed.
 `})
 	text, _ = call(t, cs, "lookup", map[string]any{"words": []string{"Upload Queue"}})
 	assert.True(t, strings.HasPrefix(text, "Upload Queue (Stacks), internal/stacks/GLOSSARY.md:5\n"), text)
+}
+
+func TestTheLookupHeaderShowsAClusterHeadingNamedGeneral(t *testing.T) {
+	root := t.TempDir()
+	glossarytest.WriteTree(t, root, map[string]string{"GLOSSARY.md": `# Shop
+
+## Language
+
+**Order**:
+A request for goods.
+
+### General
+
+**Customer**:
+A person who places an **Order**.
+`})
+	text, _ := call(t, connect(t, root), "lookup", map[string]any{"words": []string{"Order", "Customer"}})
+	assert.True(t, strings.HasPrefix(text, "Order (Shop), GLOSSARY.md:5\n"), text)
+	assert.Contains(t, text, "\nCustomer (Shop › General), GLOSSARY.md:10\n")
 }
 
 func TestAGlossaryThatCannotBeReadIsAToolError(t *testing.T) {

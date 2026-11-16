@@ -37,12 +37,19 @@ func New(o Options) http.Handler {
 	mux.HandleFunc("GET /{$}", o.page)
 	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server {
-			var opts []mcpserver.Option
-			if b := branch(o.Root); b != "" {
-				opts = append(opts, mcpserver.Reads(b))
-			}
-			s := mcpserver.New(o.Root, o.Version, o.People, opts...)
-			o.addWriteTools(s)
+			release := o.reading()
+			b := branch(o.Root)
+			release()
+			s := mcpserver.New(o.Root, o.Version, o.People, b)
+			writes := o.addWriteTools(s)
+			s.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+				return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+					if call, ok := req.(*mcp.CallToolRequest); ok && !writes[call.Params.Name] {
+						defer o.reading()()
+					}
+					return next(ctx, method, req)
+				}
+			})
 			return s
 		},
 		// The proxy reaches the loopback listener with the upstream's Host, which the SDK's DNS-rebinding guard
@@ -66,22 +73,29 @@ type personKey struct{}
 // page serves the glossary page, as ubiq html renders it, with the Person's name and role.
 func (o Options) page(w http.ResponseWriter, r *http.Request) {
 	p := r.Context().Value(personKey{}).(person.Person)
+	release := o.reading()
 	model, err := glossary.Load(o.Root)
+	release()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	name := p.Name
-	if name == "" {
-		name = p.Email
-	}
-	html, err := page.RenderFor(model, page.Viewer{Name: name, Role: string(p.Role)})
+	html, err := page.RenderFor(model, p)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = io.WriteString(w, html)
+}
+
+// reading holds off every Change and Refresh of the Batch repository until release is called, so a read never sees
+// the clone mid-change; without a Batch repository nothing changes the clone and it holds nothing off.
+func (o Options) reading() (release func()) {
+	if o.Batches == nil {
+		return func() {}
+	}
+	return o.Batches.Reading()
 }
 
 // branch is the branch checked out at root, read afresh on each call, or empty when root has none.

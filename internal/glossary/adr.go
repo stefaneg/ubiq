@@ -33,13 +33,13 @@ func parseADRs(root string, contexts []*rawContext) ([]rawADR, error) {
 	if len(contexts) == 1 && path.Dir(contexts[0].path) == "." {
 		rootContext = contexts[0].key
 	}
-	out, err := parseADRDir(root, "docs/adr", rootContext)
+	out, err := parseADRDir(root, ADRDir, rootContext)
 	if err != nil {
 		return nil, err
 	}
 	for _, rc := range contexts {
 		if dir := path.Dir(rc.path); dir != "." {
-			own, err := parseADRDir(root, path.Join(dir, "docs/adr"), rc.key)
+			own, err := parseADRDir(root, path.Join(dir, ADRDir), rc.key)
 			if err != nil {
 				return nil, err
 			}
@@ -143,7 +143,7 @@ func (r *Resolver) renderADRs(raws []rawADR) []ADR {
 			body[i] = r.autoBold(ln, res)
 		}
 		id := "adr/" + strings.TrimSuffix(path.Base(a.path), ".md")
-		if path.Dir(a.path) != "docs/adr" {
+		if path.Dir(a.path) != ADRDir {
 			id = "adr/" + a.context + "/" + strings.TrimSuffix(path.Base(a.path), ".md")
 		}
 		h, ids := r.block(body, a.context, "ADR "+a.title)

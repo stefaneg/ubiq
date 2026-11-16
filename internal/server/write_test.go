@@ -82,15 +82,15 @@ func TestTheNextLookupFindsTheDefinedTermWithItsCluster(t *testing.T) {
 		"definition": "A content hash that pins an Image.", "avoid": []string{"checksum"},
 	})
 	require.False(t, isErr, text)
-	entry := "Digest (Common › Image References), GLOSSARY.md:23\n" +
+	lookedUp := "Digest (Common › Image References), GLOSSARY.md:23\n" +
 		"  A content hash that pins an Image.\n" +
 		"  avoid: checksum\n" +
 		"  refers to: Image (Workspace)\n"
-	assert.Contains(t, text, "\n\n"+entry, "the result holds the entry as it now reads")
+	assert.Contains(t, text, "\n\n"+lookedUp, "the result holds the Term as it now reads")
 
 	text, isErr = call(t, cs, "lookup", map[string]any{"words": []string{"Digest"}})
 	assert.False(t, isErr)
-	assert.Equal(t, entry, text)
+	assert.Equal(t, lookedUp, text)
 }
 
 // define calls define_term in Common and requires it to land.
@@ -172,6 +172,61 @@ func TestAPushRejectedBecauseOriginMovedIsRetriedAfterAFetch(t *testing.T) {
 	define(t, cs, "Registry", "A server that holds Repositories.")
 	assert.Equal(t, "Define Term Registry\nNotes\nDefine Term Digest\nSeed",
 		glossarytest.Git(t, "", "--git-dir", origin, "log", "--format=%s", "ubiq/1"))
+}
+
+func TestAPushRejectedTwiceIsRefusedAndReadsNeverShowTheChange(t *testing.T) {
+	origin := glossarytest.Origin(t, glossarytest.Root(t))
+	url, root, log := serveOrigin(t, origin, ada)
+	glossarytest.WriteTree(t, root, map[string]string{".git/hooks/pre-push": "#!/bin/sh\necho 'origin is read-only' >&2\nexit 1\n"})
+	require.NoError(t, os.Chmod(filepath.Join(root, ".git/hooks/pre-push"), 0o755))
+	cs := connect(t, url)
+
+	text, isErr := call(t, cs, "define_term", map[string]any{"context": "Common", "name": "Digest", "definition": "A content hash."})
+	assert.True(t, isErr)
+	assert.Equal(t, "Origin refused the push to the Batch ubiq/1 twice, so the Change did not land.", text)
+	assert.Contains(t, log.String(), "origin is read-only", "the reason is logged for a Maintainer")
+	text, isErr = call(t, cs, "lookup", map[string]any{"words": []string{"Digest"}})
+	assert.False(t, isErr)
+	assert.NotContains(t, text, "A content hash.")
+	_, page := get(t, url)
+	assert.NotContains(t, page, "A content hash.")
+}
+
+func TestReadsWaitForAChangeInProgressAndThenSeeIt(t *testing.T) {
+	origin := glossarytest.Origin(t, glossarytest.Root(t))
+	url, root, _ := serveOrigin(t, origin, ada)
+	// The Server's pre-push hook holds the Change between its commit and its push until the test releases it.
+	dir := t.TempDir()
+	pushing, release := filepath.Join(dir, "pushing"), filepath.Join(dir, "release")
+	glossarytest.WriteTree(t, root, map[string]string{".git/hooks/pre-push": "#!/bin/sh\n" +
+		"touch '" + pushing + "'\n" +
+		"while [ ! -e '" + release + "' ]; do sleep 0.02; done\n"})
+	require.NoError(t, os.Chmod(filepath.Join(root, ".git/hooks/pre-push"), 0o755))
+	cs := connect(t, url)
+
+	defined := make(chan string, 1)
+	go func() {
+		text, _ := call(t, cs, "define_term", map[string]any{"context": "Common", "name": "Digest", "definition": "A content hash."})
+		defined <- text
+	}()
+	require.Eventually(t, func() bool { _, err := os.Stat(pushing); return err == nil }, 10*time.Second, 10*time.Millisecond)
+
+	looked, paged := make(chan string, 1), make(chan string, 1)
+	go func() {
+		text, _ := call(t, connect(t, url), "lookup", map[string]any{"words": []string{"Digest"}})
+		looked <- text
+	}()
+	go func() {
+		_, page := get(t, url)
+		paged <- page
+	}()
+	assert.Never(t, func() bool { return len(looked) > 0 || len(paged) > 0 }, 300*time.Millisecond, 10*time.Millisecond,
+		"a read waits while the Change is in progress")
+
+	glossarytest.WriteTree(t, dir, map[string]string{"release": ""})
+	assert.Contains(t, <-defined, "on the Batch ubiq/1.")
+	assert.Contains(t, <-looked, "A content hash.")
+	assert.Contains(t, <-paged, "A content hash.")
 }
 
 func TestTwoConcurrentDefinesBothLand(t *testing.T) {

@@ -1,6 +1,6 @@
 // Package batch is the Batch repository: the clone of origin the Server owns, and the open Batch every Change lands
-// in. It shells out to the host's git, treats the clone as a cache of origin, and serialises Changes with one lock;
-// see docs/server.md and docs/adr/0005-changes-land-in-a-numbered-batch-branch.md.
+// in. It shells out to the host's git, treats the clone as a cache of origin, and serialises Changes with one lock
+// that reads share; see docs/server.md and docs/adr/0005-changes-land-in-a-numbered-batch-branch.md.
 package batch
 
 import (
@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/stefaneg/ubiq/internal/prose"
 )
 
 // prefix names every Batch: ubiq/<n>.
@@ -33,12 +35,12 @@ type Repository struct {
 
 	log io.Writer
 
-	mu      sync.Mutex // one Change or Refresh at a time
-	failing string     // why the open Batch last could not be prepared, empty when it could
+	mu      sync.RWMutex // one Change or Refresh at a time, and no read during one
+	failing string       // why the open Batch last could not be prepared, empty when it could
 }
 
-// Edit is what a Change wrote to the clone: the commit's subject and the files, relative to the root, it changed.
-type Edit struct {
+// Commit is what one Change commits: its subject and the files, relative to the root, it changed.
+type Commit struct {
 	Subject string
 	Paths   []string
 }
@@ -87,6 +89,14 @@ func (r *Repository) Refresh() {
 	r.note(err)
 }
 
+// Reading holds off every Change and Refresh until release is called, so that a read of the clone sees the open
+// Batch whole: never a merge in conflict, a file a Change has written but not committed or pushed, or a checkout half
+// switched.
+func (r *Repository) Reading() (release func()) {
+	r.mu.RLock()
+	return r.mu.RUnlock
+}
+
 // note logs why the open Batch could not be prepared, unless it logged the same reason last time.
 func (r *Repository) note(err error) {
 	reason := ""
@@ -100,52 +110,64 @@ func (r *Repository) note(err error) {
 }
 
 // Change lands one Change in the open Batch: it fetches origin and checks the open Batch out with the default branch
-// merged in, runs edit on the clone, and commits what edit wrote, authored by author and committed by the Server,
-// then pushes. When origin refuses the push because the Batch moved, it fetches and runs edit once more on the
-// Batch as it now is. When edit fails, nothing lands and the clone is left as the Batch.
-func (r *Repository) Change(author Identity, edit func() (Edit, error)) (Landed, error) {
+// merged in, runs apply on the clone, and commits what apply changed, authored by author and committed by the Server,
+// then pushes. When origin refuses the push because the Batch moved, it fetches and runs apply once more on the
+// Batch as it now is; when origin refuses that push too, the Change is refused and git's reason logged. When apply
+// fails or the push is refused, nothing lands and the clone is left as the Batch on origin, so reads never show a
+// Change origin does not have.
+func (r *Repository) Change(author Identity, apply func() (Commit, error)) (Landed, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	landed, err := r.land(author, edit)
+	landed, err := r.land(author, apply)
 	var rejected *rejectedPush
 	if errors.As(err, &rejected) {
-		landed, err = r.land(author, edit)
+		landed, err = r.land(author, apply)
+	}
+	if errors.As(err, &rejected) {
+		fmt.Fprintf(r.log, "push a Change to the Batch %s: %s\n", rejected.batch, rejected.err)
+		return Landed{}, fmt.Errorf("Origin refused the push to the Batch %s twice, so the Change did not land.", rejected.batch)
 	}
 	return landed, err
 }
 
-// rejectedPush is origin refusing a Change's push.
-type rejectedPush struct{ err error }
+// rejectedPush is origin refusing a Change's push to batch.
+type rejectedPush struct {
+	batch string
+	err   error
+}
 
 func (e *rejectedPush) Error() string { return e.err.Error() }
 
-// land prepares the open Batch, runs edit and commits and pushes what it wrote.
-func (r *Repository) land(author Identity, edit func() (Edit, error)) (Landed, error) {
+// land prepares the open Batch, runs apply and commits and pushes what it changed.
+func (r *Repository) land(author Identity, apply func() (Commit, error)) (Landed, error) {
 	batch, err := r.prepare()
 	r.note(err)
 	if err != nil {
 		return Landed{}, err
 	}
-	e, err := edit()
+	c, err := apply()
 	if err != nil {
 		r.discard()
 		return Landed{}, err
 	}
-	commit, err := r.commit(author, e)
+	commit, err := r.commit(author, c)
 	if err != nil {
 		r.discard()
 		return Landed{}, err
 	}
 	if _, err := r.git(nil, "push", "--quiet", "origin", "HEAD:refs/heads/"+batch); err != nil {
-		return Landed{}, &rejectedPush{err}
+		_, _ = r.git(nil, "reset", "--quiet", "--hard", "HEAD^")
+		return Landed{}, &rejectedPush{batch: batch, err: err}
 	}
 	return Landed{Batch: batch, Commit: commit}, nil
 }
 
 // prepare fetches origin and checks out the open Batch, ubiq/<n> with the highest n on origin, or ubiq/1 from the
-// default branch when origin has none, with the default branch merged in. A Batch that holds a Change and then
-// differs from the default branch in nothing a Maintainer has merged, so ubiq/<n+1> opens from the default branch.
-// It returns the Batch's name.
+// default branch when origin has none, with the default branch merged in. A Batch that holds no Change and that the
+// default branch has moved past, as one a Maintainer opened by hand, is reset to the default branch and reused
+// instead; one with commits of its own but no Change keeps them and has the default branch merged in. A Batch that
+// holds a Change and then differs from the default branch in nothing a Maintainer has merged, so ubiq/<n+1> opens
+// from the default branch. It returns the Batch's name.
 func (r *Repository) prepare() (string, error) {
 	if _, err := r.git(nil, "fetch", "--quiet", "--prune", "origin"); err != nil {
 		return "", err
@@ -168,7 +190,15 @@ func (r *Repository) prepare() (string, error) {
 		return r.checkout(prefix+"1", "origin/"+main)
 	}
 	n := slices.Max(numbers)
-	batch, err := r.checkout(prefix+strconv.Itoa(n), "origin/"+prefix+strconv.Itoa(n))
+	open := prefix + strconv.Itoa(n)
+	held, err := r.holdsChange(n, numbers)
+	if err != nil {
+		return "", err
+	}
+	if !held && r.ancestor("origin/"+open, "origin/"+main) {
+		return r.checkout(open, "origin/"+main)
+	}
+	batch, err := r.checkout(open, "origin/"+open)
 	if err != nil {
 		return "", err
 	}
@@ -179,17 +209,22 @@ func (r *Repository) prepare() (string, error) {
 			return "", fmt.Errorf("merge the default branch %s into the Batch %s: %w", main, batch, err)
 		}
 		return "", fmt.Errorf("The Batch %s conflicts with the default branch %s in %s, so Changes are refused until "+
-			"a Maintainer merges %s into %s and pushes.", batch, main, list(strings.Fields(files)), main, batch)
+			"a Maintainer merges %s into %s and pushes.", batch, main, prose.List(strings.Fields(files)), main, batch)
+	}
+	if !held {
+		return batch, nil
 	}
 	same, err := r.sameTree("HEAD", "origin/"+main)
 	if err != nil || !same {
 		return batch, err
 	}
-	held, err := r.holdsChange(n, numbers)
-	if err != nil || !held {
-		return batch, err
-	}
 	return r.checkout(prefix+strconv.Itoa(n+1), "origin/"+main)
+}
+
+// ancestor tells whether commit a is b or one of b's ancestors.
+func (r *Repository) ancestor(a, b string) bool {
+	_, err := r.git(nil, "merge-base", "--is-ancestor", a, b)
+	return err == nil
 }
 
 // sameTree tells whether two commits hold the same files.
@@ -242,13 +277,13 @@ func (r *Repository) checkout(branch, start string) (string, error) {
 	return branch, nil
 }
 
-// commit commits the paths of e as one commit by author and returns its full id.
-func (r *Repository) commit(author Identity, e Edit) (string, error) {
-	if _, err := r.git(nil, append([]string{"add", "--all", "--"}, e.Paths...)...); err != nil {
+// commit commits the paths of c as one commit by author and returns its full id.
+func (r *Repository) commit(author Identity, c Commit) (string, error) {
+	if _, err := r.git(nil, append([]string{"add", "--all", "--"}, c.Paths...)...); err != nil {
 		return "", err
 	}
 	env := append(author.env("AUTHOR"), r.committer.env("COMMITTER")...)
-	if _, err := r.git(env, "commit", "--quiet", "--no-verify", "-m", e.Subject); err != nil {
+	if _, err := r.git(env, "commit", "--quiet", "--no-verify", "-m", c.Subject); err != nil {
 		return "", err
 	}
 	return r.git(nil, "rev-parse", "HEAD")
@@ -258,14 +293,6 @@ func (r *Repository) commit(author Identity, e Edit) (string, error) {
 func (r *Repository) discard() {
 	_, _ = r.git(nil, "reset", "--quiet", "--hard")
 	_, _ = r.git(nil, "clean", "--quiet", "--force", "-d")
-}
-
-// list joins names as prose: "a", "a and b", "a, b and c".
-func list(names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
 // env is the git environment variables that make id the given roles, AUTHOR or COMMITTER.

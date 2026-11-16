@@ -1,4 +1,4 @@
-package edit
+package layout
 
 import (
 	"errors"
@@ -20,17 +20,11 @@ type ADR struct {
 // above the paragraphs. Refused when the title or text is empty, when the title has nothing to slug, or when an
 // existing ADR has the same slug.
 func Record(names []string, title, text string) (ADR, error) {
+	if err := ValidADR(title, text); err != nil {
+		return ADR{}, err
+	}
 	title, text = strings.Join(strings.Fields(title), " "), paragraphs(text)
-	if title == "" {
-		return ADR{}, errors.New("the ADR's title is empty")
-	}
-	if text == "" {
-		return ADR{}, fmt.Errorf("the text of the ADR %s is empty", title)
-	}
 	s := slug(title)
-	if s == "" {
-		return ADR{}, fmt.Errorf("the title %s has no letters or digits to name the file by", title)
-	}
 	highest := 0
 	for _, n := range names {
 		digits, rest, _ := strings.Cut(strings.TrimSuffix(n, ".md"), "-")
@@ -44,6 +38,21 @@ func Record(names []string, title, text string) (ADR, error) {
 		highest = max(highest, k)
 	}
 	return ADR{Name: fmt.Sprintf("%04d-%s.md", highest+1, s), Title: title, Body: "# " + title + "\n\n" + text + "\n"}, nil
+}
+
+// ValidADR refuses an ADR whose title or text is empty, or whose title has nothing to slug, before anything reads the
+// ADRs.
+func ValidADR(title, text string) error {
+	title = strings.Join(strings.Fields(title), " ")
+	switch {
+	case title == "":
+		return errors.New("the ADR's title is empty")
+	case paragraphs(text) == "":
+		return fmt.Errorf("the text of the ADR %s is empty", title)
+	case slug(title) == "":
+		return fmt.Errorf("the title %s has no letters or digits to name the file by", title)
+	}
+	return nil
 }
 
 // paragraphs is text with trailing spaces cut from every line, blank lines at either end dropped and every run of
