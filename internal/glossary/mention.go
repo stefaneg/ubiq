@@ -20,7 +20,7 @@ func newMentions(terms map[string]*Term) *mentions {
 		if r, _ := utf8.DecodeRuneInString(t.Name); !unicode.IsUpper(r) {
 			continue
 		}
-		for _, f := range writtenForms(t.Name) {
+		for _, f := range WrittenForms(t.Name) {
 			m.forms[f] = t.Name
 			if n := len(reWord.FindAllStringIndex(f, -1)); n > m.maxWords {
 				m.maxWords = n
@@ -30,8 +30,8 @@ func newMentions(terms map[string]*Term) *mentions {
 	return m
 }
 
-// writtenForms lists a name and the plurals a definition may write it in.
-func writtenForms(name string) []string {
+// WrittenForms lists a name and the plurals a definition may write it in.
+func WrittenForms(name string) []string {
 	out := []string{name, name + "s", name + "es"}
 	if strings.HasSuffix(name, "y") {
 		out = append(out, name[:len(name)-1]+"ies")
