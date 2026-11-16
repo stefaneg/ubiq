@@ -31,6 +31,8 @@ The [README](https://github.com/stefaneg/ubiq#readme) describes each command, it
 ## Learn more
 
 - [Examples](examples/README.md): how to render the example page again, and how to render a larger glossary.
+- [The Server](server.md): the design of `ubiq serve`, one process for the page and remote MCP, with writes,
+  behind OpenID Connect.
 - [ADR 0001: References are bold or capitalised mentions](adr/0001-references-are-bold-or-capitalised-mentions.md)
 - [ADR 0002: Follow only the latest domain-modeling format](adr/0002-follow-only-the-latest-domain-modeling-format.md)
 - [Source on GitHub](https://github.com/stefaneg/ubiq)

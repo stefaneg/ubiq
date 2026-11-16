@@ -1,7 +1,8 @@
 # ubiq
 
 ubiq reads the **Domain Model** a repository keeps as Markdown, renders it as one page, answers what its words mean,
-and reports where its language is unclear or broken.
+and reports where its language is unclear or broken. Served, it also lets a **Person**'s **Agent** make **Changes** to
+it.
 
 ## Language
 
@@ -60,14 +61,12 @@ _Avoid_: link
 Two **Terms** that one **Statement** mentions, or that it and the heading just above it mention.
 _Avoid_: association, related term
 
-### Lookups
+### Tools
 
 **Lookup**:
 A search of a **Domain Model** for the **Terms** a word names or avoids, else for those the parts of a compound word
 name or avoid, else for the **Terms** that mention it.
 _Avoid_: search, query, find
-
-### Checks
 
 **Vocabulary Check**:
 A comparison of a text with the **Terms** of a **Domain Model**, which lists the **Terms** and **Avoided Words** the
@@ -109,9 +108,66 @@ A bold phrase that names neither a **Term** nor a **Context**, or a name in a bo
 Billing" that names no **Context**.
 _Avoid_: broken link, dangling reference
 
+### Serving
+
+**Server**:
+The long-running ubiq process that serves the page and the MCP tools for one repository.
+_Avoid_: served ubiq, service, web server, daemon
+
+**Deployment**:
+One **Server**, the **Identity Provider** it trusts, and the repository it serves.
+_Avoid_: instance, installation, environment
+
+### People
+
+**Identity Provider**:
+The external OpenID Connect provider a **Deployment** trusts to say who a person is.
+_Avoid_: IdP, SSO, login provider
+
+**Person**:
+A human ubiq acts for: through a **Server**, one the **Identity Provider** has identified; otherwise, whoever holds
+the working tree. Everything a **Server** does, it does for a Person.
+_Avoid_: user, account, principal
+
+**Agent**:
+An MCP client acting for a **Person**: it asks for a **Lookup**, a **Vocabulary Check** or a **Health Check**, and
+makes **Changes** for a **Writer**.
+_Avoid_: client, bot
+
+**Reader**:
+A **Person** the **Identity Provider** admits, who may read the **Domain Model** through the **Server**.
+_Avoid_: viewer, guest, visitor
+
+**Writer**:
+A **Person** whose identity satisfies the **Deployment**'s **Writer Rule**, who may make **Changes**. Every other
+**Person** is a **Reader**.
+_Avoid_: editor, contributor, author
+
+**Writer Rule**:
+The claim name and accepted values a **Deployment** configures to tell a **Writer** from a **Reader**.
+_Avoid_: allowlist, ACL, permission, role mapping
+
+### Changes
+
+**Change**:
+One accepted write to the **Domain Model** that an **Agent** makes for a **Person**, recorded as one commit.
+_Avoid_: edit, write, revision, update
+
+**Batch**:
+The sequence of **Changes** gathered on one numbered branch, awaiting a **Maintainer**'s merge into the default
+branch.
+_Avoid_: round, change set, pending changes
+
+**Maintainer**:
+A **Person** who commits to the default branch directly, and so is the one who merges each **Batch** into it. The
+repository, not ubiq, decides who that is.
+_Avoid_: admin, owner, reviewer
+
 ## Relationships
 
 - A **Lookup** of a **Term** gives its **References** both ways, its **Co-mentions**, and the **Statements** that
   mention it.
 - The **Statements** under one heading that mention a name and name both **Contexts** that define it, typically
   **Context Relationships**, keep it from being an **Unmapped Name**.
+- A **Server** reads and changes the open **Batch**, so a **Lookup** through it sees every **Change** before a
+  **Maintainer** has merged it.
