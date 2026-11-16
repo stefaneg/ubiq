@@ -2,7 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/pem"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +32,40 @@ func TestServeAcceptsEveryFlagInDevDirectModeAndListens(t *testing.T) {
 		"-person", "Ada Lovelace <ada@example.com>", "-ca", "ca.pem", "-writer-claim", "email",
 		"-writers", "ada@example.com,bob@example.com", "-committer", "ubiq-bot <bot@example.com>")
 	assert.Contains(t, msg, "address already in use")
+}
+
+func TestServeAcceptsEveryFlagBehindAProxyAndListens(t *testing.T) {
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = taken.Close() })
+	ca := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(ca, testCA(t), 0o600))
+	msg := refusal(t, "-origin", "https://example.com/handbook.git", "-listen", taken.Addr().String(),
+		"-assertion-keys", "https://authenticate.example.com/.well-known/pomerium/jwks.json", "-ca", ca,
+		"-writer-claim", "email", "-writers", "ada@example.com,bob@example.com", "-committer", "ubiq-bot <bot@example.com>")
+	assert.Contains(t, msg, "address already in use")
+}
+
+func TestServeRefusesACAItCannotRead(t *testing.T) {
+	assert.Contains(t, refusal(t, "-origin", "https://example.com/handbook.git", "-writers", "w",
+		"-assertion-keys", "https://authenticate.example.com/jwks.json", "-ca", "/nonexistent/ca.pem"),
+		`ubiq serve: -ca "/nonexistent/ca.pem": `)
+}
+
+func TestServeRefusesACAWithNoCertificate(t *testing.T) {
+	ca := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(ca, []byte("not a certificate"), 0o600))
+	assert.Equal(t, `ubiq serve: -ca "`+ca+`": the CA holds no PEM certificate.`,
+		refusal(t, "-origin", "https://example.com/handbook.git", "-writers", "w",
+			"-assertion-keys", "https://authenticate.example.com/jwks.json", "-ca", ca))
+}
+
+// testCA is a PEM certificate, the one a TLS test server presents.
+func testCA(t *testing.T) []byte {
+	t.Helper()
+	ts := httptest.NewTLSServer(http.NotFoundHandler())
+	t.Cleanup(ts.Close)
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ts.Certificate().Raw})
 }
 
 func TestServeRefusesWhenNobodyMayWrite(t *testing.T) {

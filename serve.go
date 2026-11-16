@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/mail"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -23,15 +24,16 @@ func runServe(args []string, status io.Writer) error {
 	origin := fs.String("origin", "", "the repository's https URL (required)")
 	listen := fs.String("listen", "127.0.0.1:8766", "the address to listen on, loopback behind the proxy")
 	keys := fs.String("assertion-keys", "", "URL of the keys that sign the proxy's assertion (required unless -person)")
-	fs.String("ca", "", "extra CA certificate file to trust when fetching the assertion keys")
-	fs.String("writer-claim", "groups", "the Writer Rule's claim")
+	ca := fs.String("ca", "", "extra CA certificate file to trust when fetching the assertion keys")
+	claim := fs.String("writer-claim", "groups", "the Writer Rule's claim")
 	writers := fs.String("writers", "", "the Writer Rule's accepted values, comma-separated (required)")
 	committer := fs.String("committer", "ubiq serve <ubiq@localhost>", `the Server's git identity, "Name <email>"`)
 	fixed := fs.String("person", "", `dev direct mode: every request is this Writer, "Name <email>", on loopback only`)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if strings.TrimSpace(*writers) == "" {
+	accepted := values(*writers)
+	if len(accepted) == 0 {
 		return errors.New("ubiq serve: -writers is missing, so nobody may write; name the Writer Rule's accepted values.")
 	}
 	switch {
@@ -49,10 +51,7 @@ func runServe(args []string, status io.Writer) error {
 	if _, err := identity("committer", *committer); err != nil {
 		return err
 	}
-	if *keys != "" {
-		return errors.New("ubiq serve: -assertion-keys is not built yet; use -person on loopback.")
-	}
-	p, err := identity("person", *fixed)
+	people, err := resolver(*keys, *ca, *fixed, person.WriterRule{Claim: *claim, Values: accepted})
 	if err != nil {
 		return err
 	}
@@ -60,8 +59,43 @@ func runServe(args []string, status io.Writer) error {
 	if err != nil {
 		return err
 	}
-	h := server.New(server.Options{Root: abs, Version: version(), People: person.Fixed(p.Name, p.Address), Log: status})
+	h := server.New(server.Options{Root: abs, Version: version(), People: people, Log: status})
 	return http.ListenAndServe(*listen, h)
+}
+
+// resolver is the Person resolver the flags ask for: the assertion verifier for the keys at keys, trusting the CA
+// file ca when given, or the fixed Person of dev direct mode.
+func resolver(keys, ca, fixed string, rule person.WriterRule) (person.Resolver, error) {
+	if keys == "" {
+		p, err := identity("person", fixed)
+		if err != nil {
+			return nil, err
+		}
+		return person.Fixed(p.Name, p.Address), nil
+	}
+	var pem []byte
+	if ca != "" {
+		var err error
+		if pem, err = os.ReadFile(ca); err != nil {
+			return nil, fmt.Errorf("ubiq serve: -ca %q: %w.", ca, err)
+		}
+	}
+	r, err := person.Assertion(keys, pem, rule)
+	if err != nil {
+		return nil, fmt.Errorf("ubiq serve: -ca %q: %w.", ca, err)
+	}
+	return r, nil
+}
+
+// values splits a comma-separated flag into its trimmed, non-empty values.
+func values(flag string) []string {
+	var vs []string
+	for _, v := range strings.Split(flag, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			vs = append(vs, v)
+		}
+	}
+	return vs
 }
 
 // loopback tells whether addr listens on a loopback address only.
