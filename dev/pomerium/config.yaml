@@ -1,0 +1,52 @@
+# Pomerium Core for the dev Deployment. Dev-only secrets; never reuse.
+authenticate_service_url: https://authenticate.localhost.pomerium.io
+
+certificate_file: /pomerium/certs/localhost.pomerium.io.pem
+certificate_key_file: /pomerium/certs/localhost.pomerium.io-key.pem
+
+shared_secret: xvzY4BYewrtVFsQz1vZvFoz/5ld7Im366dq72ZEpAXY=
+cookie_secret: 73WkDa2HBTinF9f38aZ4SfD6BbAm2l+CRrH7TbcTLF4=
+databroker_storage_type: file
+databroker_storage_connection_string: file:///data/pomerium
+
+# The Identity Provider: Keycloak realm "ubiq" (dev/keycloak/ubiq-realm.json).
+idp_provider: oidc
+idp_provider_url: http://keycloak.localhost.pomerium.io:8080/realms/ubiq
+idp_client_id: pomerium
+idp_client_secret: cb4f643442f24e06296c8807aa5c7ef2
+
+# MCP clients register with Pomerium in one of two ways, both off until configured here.
+# Client ID metadata documents: the client's id is a URL whose host must be allowed. Claude Code's is
+# https://claude.ai/oauth/claude-code-client-metadata.
+mcp_allowed_client_id_domains:
+  - claude.ai
+# Dynamic Client Registration, for clients without a metadata document (runtime flag, default off; without it the
+# authorization-server metadata shows no registration_endpoint and /.pomerium/mcp/register answers 403).
+runtime_flags:
+  mcp_dynamic_client_registration: true
+
+routes:
+  # Both routes admit anyone the Identity Provider admits; the Server's Writer Rule alone decides who writes.
+  # pass_identity_headers sends the assertion JWT the Server reads the Person from, on MCP requests too.
+
+  # The Server's page.
+  - from: https://ubiq.localhost.pomerium.io
+    to: http://ubiq:8766
+    pass_identity_headers: true
+    policy:
+      - allow:
+          or:
+            - authenticated_user: true
+
+  # The Server's MCP endpoint (/mcp). `mcp: server` makes the route an OAuth 2.1 protected resource with Pomerium as
+  # its authorization server; bearer tokens only.
+  - from: https://mcp.localhost.pomerium.io
+    to: http://ubiq:8766
+    name: Ubiq MCP
+    pass_identity_headers: true
+    mcp:
+      server: {}
+    policy:
+      - allow:
+          or:
+            - authenticated_user: true

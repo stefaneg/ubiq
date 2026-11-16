@@ -1,0 +1,7 @@
+.git
+.claude
+.agents
+ubiq
+glossary.html
+dev
+!dev/ubiq/entrypoint.sh
