@@ -58,8 +58,24 @@ type checkInput struct {
 	Text string `json:"text" jsonschema:"the text to check"`
 }
 
+// Option changes the instructions a server gives its clients.
+type Option func(instructions string) string
+
+// Reads tells clients that the server reads branch of its own copy of the repository, so they do not compare its
+// answers with their own checkout.
+func Reads(branch string) Option {
+	return func(instructions string) string {
+		return instructions + ` This server reads branch ` + branch + ` of its own copy of the repository, not your ` +
+			`checkout, so its answers can differ from the files on your machine.`
+	}
+}
+
 // New returns a server for the Domain Model under root that learns the calling Person from people.
-func New(root, version string, people person.Resolver) *mcp.Server {
+func New(root, version string, people person.Resolver, opts ...Option) *mcp.Server {
+	instructions := instructions
+	for _, o := range opts {
+		instructions = o(instructions)
+	}
 	s := mcp.NewServer(&mcp.Implementation{Name: "ubiq", Version: version}, &mcp.ServerOptions{Instructions: instructions})
 	readOnly := &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: new(bool)}
 	mcp.AddTool(s, &mcp.Tool{Name: "lookup", Description: lookupDescription, Annotations: readOnly},

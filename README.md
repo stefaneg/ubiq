@@ -145,6 +145,39 @@ The command writes it to `.mcp.json`. Other agents take the same command, `ubiq 
 For a small glossary, an agent can as well read `GLOSSARY.md` itself. The server pays off once the glossary and ADRs
 are too long to read in every session, or once the repository has several contexts.
 
+### Serve the page and the tools over HTTP
+
+```sh
+ubiq serve -root /var/lib/ubiq/repo -origin https://github.com/example/handbook.git \
+  -assertion-keys https://authenticate.glossary.example.com/.well-known/pomerium/jwks.json -writers glossary-writers
+```
+
+`serve` runs the Server: one long-running process for one repository, behind an identity-aware proxy, that serves
+the page `ubiq html` renders at `/`, with the Person's name and role at the top, and the four tools of `ubiq mcp` over
+the MCP streamable transport at `/mcp`. Every request is on behalf of a Person the proxy vouches for; a request with
+none is answered `401`. The server's instructions name the branch it reads, and it logs one line per request to
+stderr. The design is [docs/server.md](docs/server.md).
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `-root <dir>` | `.` | The clone the Server owns. |
+| `-origin <url>` | required | The repository, by HTTPS; SSH is refused. A local path is accepted for development. |
+| `-listen <addr>` | `127.0.0.1:8766` | Loopback; the proxy sits in front. |
+| `-assertion-keys <url>` | required unless `-person` | Where the proxy publishes the keys that sign its assertion. |
+| `-ca <file>` | system roots | Extra CA to trust when fetching the keys. |
+| `-writer-claim <name>` | `groups` | The Writer Rule's claim. |
+| `-writers <v,v,...>` | required | The Writer Rule's accepted values. |
+| `-committer "Name <email>"` | `ubiq serve <ubiq@localhost>` | The Server's git identity. |
+| `-person "Name <email>"` | off | Dev direct mode: every request is this Person, a Writer, with no proxy; loopback only. |
+
+It refuses to start when `-writers` is missing, when it has neither or both of `-assertion-keys` and `-person`, when
+`-person` is given with a `-listen` that is not loopback, or when `-origin` is missing, SSH or another scheme than
+HTTPS. To try it alone:
+
+```sh
+ubiq serve -origin /path/to/handbook.git -writers dev -person "Ada Lovelace <ada@example.com>"
+```
+
 ## Examples
 
 [ubiq's own glossary](https://stefaneg.github.io/ubiq/examples/ubiq.html) is the page rendered from this
