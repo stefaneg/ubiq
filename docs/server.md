@@ -154,15 +154,17 @@ origin, or `ubiq/1` from the default branch when there is none. The default bran
 to; the prefix `ubiq/` is fixed.
 
 On every fetch the Server merges the default branch into the open Batch, so developers' edits on the default branch
-appear on the page and in Lookups without waiting for anyone. Then:
+appear on the page and in Lookups without waiting for anyone. Besides each Change, it fetches at startup and every
+half minute. Then:
 
 - When that merge **conflicts**, the Change is refused, naming the Batch and the conflicting files, until a
   Maintainer resolves it on the branch. Reads keep serving the clone as it stands. A conflict found at startup is
   logged and is not fatal: reads continue, writes refuse.
 - When the Batch **holds a Change and differs from the default branch in nothing**, a Maintainer has merged it, by
   fast-forward, merge commit, squash or rebase alike. The next Change opens `ubiq/<n+1>` from the default branch.
-  "Holds a Change" means "has a commit the Server committed": a Batch opened by hand with no Change is never taken as
-  merged, and a merged Batch whose history was kept is not mistaken for an empty one.
+  "Holds a Change" means "has a commit the Server committed that no earlier Batch on origin has": a Batch opened by
+  hand with no Change is never taken as merged, even from a default branch that carries an earlier Batch's Changes,
+  and a merged Batch whose history was kept is not mistaken for an empty one.
 - Otherwise the Change is committed on the Batch and pushed straight after. A push rejected because the branch moved
   is retried after a fetch.
 
