@@ -4,7 +4,7 @@ Tooling for a domain-driven design ubiquitous language kept as Markdown in the r
 
 ubiq reads the `GLOSSARY.md` glossaries, the `GLOSSARY-MAP.md` context map, and the `docs/adr` decision records.
 It renders them as one HTML page, looks up what a word means, and checks both the glossary and other text against
-the vocabulary. It also serves the lookup and the check to coding agents over MCP.
+the vocabulary. It also serves the lookup, the check and the health report to coding agents over MCP.
 
 ## Usage
 
@@ -62,7 +62,8 @@ ubiq lookup Clip "upload queue" VideoFile
 
 `lookup` answers, for each word, what the glossary says about it. The word may be written as prose or as an
 identifier: `StackImage`, `stack_image`, `stack-image` and `stack images` all find the term Stack Image. When the word
-names a term, `lookup` prints the term with its context, place, and definition. It also prints:
+names a term, `lookup` prints the term with its context, its cluster when it sits under one, its place, and its
+definition. It also prints:
 
 - what the term refers to, and what refers to it
 - the terms that statements mention alongside it
@@ -70,7 +71,7 @@ names a term, `lookup` prints the term with its context, place, and definition. 
 - the ADRs that mention it
 
 ```
-Clip (Course Video Manager), GLOSSARY.md:12
+Clip (Course Video Manager › Editing), GLOSSARY.md:12
   A cut of one Recording that belongs to a Lesson.
   avoid: video, snippet
   refers to: Recording, Lesson
@@ -124,10 +125,12 @@ ubiq mcp
 ```
 
 `mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server on stdin and stdout, so that a coding
-agent can ask about the glossary while it works. It has two read-only tools:
+agent can ask about the glossary while it works. It has four read-only tools:
 
 - `lookup` takes a list of words and answers as `ubiq lookup` does.
 - `check` takes a text and answers as `ubiq check` does.
+- `health` answers as `ubiq health` does, findings and summary line together.
+- `whoami` gives the git identity of the working tree, `user.name` and `user.email`, with role Maintainer.
 
 Each call reads the glossary again, so an agent that edits `GLOSSARY.md` gets answers from the edited file. A call
 takes milliseconds even for a glossary of a thousand terms. To add the server to Claude Code for a repository, run

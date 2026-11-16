@@ -11,8 +11,8 @@
 // that have no entry, and the Avoided Words it used with the terms to use instead. lookup tells, for each word,
 // the Terms it names or the Terms to use instead of it, and failing both, the Terms that mention it. health
 // prints the glossary health report as one "path:line: rule: name: note" line per finding and exits 1 when
-// there is any. mcp serves lookup and check as Model Context Protocol tools on stdin and stdout, reading the
-// glossary afresh on every call. Every command exits 2 on a usage or read error.
+// there is any. mcp serves lookup, check, health and whoami as Model Context Protocol tools on stdin and stdout,
+// reading the glossary afresh on every call; whoami is the working tree's git identity with role Maintainer. Every command exits 2 on a usage or read error.
 package main
 
 import (
@@ -34,6 +34,7 @@ import (
 	"github.com/stefaneg/ubiq/internal/lookup"
 	"github.com/stefaneg/ubiq/internal/mcpserver"
 	"github.com/stefaneg/ubiq/internal/page"
+	"github.com/stefaneg/ubiq/internal/person"
 )
 
 const usage = "usage: ubiq html [-root dir] [-out file] | ubiq check [-root dir] [file ...] | " +
@@ -152,7 +153,7 @@ func runMCP(args []string, stdin io.Reader, stdout, status io.Writer) error {
 		return err
 	}
 	t := &mcp.IOTransport{Reader: io.NopCloser(stdin), Writer: nopWriteCloser{stdout}}
-	return mcpserver.New(abs, version()).Run(context.Background(), t)
+	return mcpserver.New(abs, version(), person.Git(abs)).Run(context.Background(), t)
 }
 
 type nopWriteCloser struct{ io.Writer }
