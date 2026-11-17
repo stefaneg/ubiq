@@ -1,0 +1,10 @@
+# The cross-compiled binary Packer bakes.
+/build/
+
+# Terraform's state is local and holds the secrets from the variables; so do the variables.
+/terraform/.terraform/
+/terraform/*.tfstate
+/terraform/*.tfstate.*
+/terraform/.terraform.tfstate.lock.info
+/terraform/*.tfvars
+/terraform/crash.log

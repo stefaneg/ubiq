@@ -88,7 +88,9 @@ machine will find differences. The MCP server's instructions therefore say which
 write result names the Batch it landed in.
 
 Every call reads the Domain Model afresh from the clone; nothing is cached
-([ADR 0003](adr/0003-read-the-domain-model-on-every-call.md)).
+([ADR 0003](adr/0003-read-the-domain-model-on-every-call.md)). Reads share one lock with Changes and the periodic
+fetch: a read waits while either is under way, so it never sees a merge in conflict, a Change not yet pushed, or a
+checkout half switched. Reads do not wait for one another.
 
 **The page** at `/` is the `ubiq html` page, Health Check included, with the Person's name and role at the top. No
 separate routes.
@@ -97,7 +99,7 @@ separate routes.
 
 | Tool | Input | Answer |
 |---|---|---|
-| `lookup` | `words`, a list | For each word, what `ubiq lookup` prints. The Term header line is `Name (Context / Cluster), path:line`; the Cluster is left out when the Term sits under none. |
+| `lookup` | `words`, a list | For each word, what `ubiq lookup` prints. The Term header line is `Name (Context › Cluster), path:line`; the Cluster is left out when the Term sits under none. |
 | `check` | `text` | What `ubiq check` prints: the Terms and Avoided Words the text uses and its Candidate Phrases. |
 | `health` | none | The whole Health Check as `ubiq health` prints it, one `path:line: rule: name: note` line per Finding and the summary line. |
 | `whoami` | none | On the Server: the Person's name, email and role, Reader or Writer, nothing about claims or the proxy. In stdio: the git identity of the working tree (`user.name`, `user.email`, or "unset") with role Maintainer. |
@@ -105,14 +107,14 @@ separate routes.
 ## Writes
 
 The Server offers four write tools, one per domain operation. The Agent never sees Markdown: it writes plain text and
-the Server lays the entry out. Writes are refused for a closed list of reasons and otherwise land, Findings included
+the Server lays the Markdown out. Writes are refused for a closed list of reasons and otherwise land, Findings included
 ([ADR 0009](adr/0009-a-change-lands-with-its-findings.md)).
 
 | Tool | Input | Effect |
 |---|---|---|
-| `define_term` | `name`, `definition` (plain text), `avoid` (list, optional), `cluster` (optional), `context` (optional; required when the repository has more than one Context) | A new Term entry in the Glossary. |
+| `define_term` | `name`, `definition` (plain text), `avoid` (list, optional), `cluster` (optional), `context` (optional; required when the repository has more than one Context) | A new Term in the Glossary. |
 | `revise_term` | the same fields, plus `new_name` (optional) | Full replacement of the definition and the avoid list; the Agent looked the Term up first, there are no patch operations. `cluster` moves the Term. `new_name` renames it and rewrites every Reference to it in the same Change. |
-| `remove_term` | `name`, `context` as above | Removes the entry. |
+| `remove_term` | `name`, `context` as above | Removes the Term. |
 | `record_adr` | `title`, `text` (free paragraphs) | A new file in the repository's `docs/adr`; the Server picks the next number and the slug and returns the path. No status or supersedes fields. Per-Context ADR directories are not written in this spec. |
 
 **Layout the Server applies.** In a definition, every exact match of an existing Term's name, or its plural, is
@@ -130,12 +132,18 @@ cleaning up calls `health`.
 
 - the Person is a Reader, in which case the refusal names the Writer Rule's claim and accepted values;
 - `define_term` names a Term that exists in that Context, or `revise_term` or `remove_term` names one that does not;
-- `context` names no Context;
+- `revise_term`'s `new_name` names another Term of that Context;
+- `context` names no Context, or is left out where the repository has more than one;
 - `name`, `definition`, `title` or `text` is empty;
+- `record_adr`'s `title` has no letters or digits to name the file by, or names it as an existing ADR's file is
+  named;
+- the Domain Model would no longer read after the Change;
 - the Batch is in conflict with the default branch (see below), in which case the refusal names the branch and the
-  conflicting files.
+  conflicting files;
+- origin refuses the Change's push twice (see below).
 
-A refusal is one sentence that names only tools the Server lists, so an Agent can act on it. The write tools stay
+Input alone decides the empty fields and the ADR title, so those are refused before the repository is locked or the
+Batch prepared, and are refused for what they are even while the Batch conflicts. A refusal is one sentence that names only tools the Server lists, so an Agent can act on it. The write tools stay
 listed for a Reader; only the call is refused.
 
 **The result of a write** is the Term or ADR as it now reads, the commit id, the Batch name, and the Findings
@@ -154,21 +162,34 @@ origin, or `ubiq/1` from the default branch when there is none. The default bran
 to; the prefix `ubiq/` is fixed.
 
 On every fetch the Server merges the default branch into the open Batch, so developers' edits on the default branch
-appear on the page and in Lookups without waiting for anyone. Then:
+appear on the page and in Lookups without waiting for anyone. Besides each Change, it fetches at startup and every
+half minute. Then:
 
 - When that merge **conflicts**, the Change is refused, naming the Batch and the conflicting files, until a
   Maintainer resolves it on the branch. Reads keep serving the clone as it stands. A conflict found at startup is
   logged and is not fatal: reads continue, writes refuse.
 - When the Batch **holds a Change and differs from the default branch in nothing**, a Maintainer has merged it, by
   fast-forward, merge commit, squash or rebase alike. The next Change opens `ubiq/<n+1>` from the default branch.
-  "Holds a Change" means "has a commit the Server committed": a Batch opened by hand with no Change is never taken as
-  merged, and a merged Batch whose history was kept is not mistaken for an empty one.
+  "Holds a Change" means "has a commit the Server committed that no earlier Batch on origin has": a Batch opened by
+  hand with no Change is never taken as merged, even from a default branch that carries an earlier Batch's Changes,
+  and a merged Batch whose history was kept is not mistaken for an empty one.
+- When the Batch **holds no Change and the default branch has moved past it**, as a Batch a Maintainer opened by
+  hand does, it is reset to the default branch and reused rather than merged with it. One with commits of its own but
+  no Change keeps them and has the default branch merged in, so no one's commit is lost.
 - Otherwise the Change is committed on the Batch and pushed straight after. A push rejected because the branch moved
-  is retried after a fetch.
+  is retried after a fetch. When origin refuses the retry too, the Change is refused, the reason is logged, and the
+  clone drops the commit, so reads never show a Change origin does not have.
 
 A Maintainer merges each Batch into the default branch by hand, opening a pull request or merge request if the
 repository wants one. The Server never calls a forge API, so a protected default branch is no concern of its. Against
-a local origin the whole fetch, merge, edit, commit and push takes about a quarter of a second.
+a local origin the whole fetch, merge, commit and push takes about a quarter of a second.
+
+**Merged Batches stay on origin.** "Holds a Change" is decided against the earlier `ubiq/<n>` branches on origin, and
+the Server keeps no other record of them, so Maintainers keep every merged `ubiq/*` branch: the forge's automatic
+deletion of merged branches is turned off for them (on GitHub, "Automatically delete head branches", or a ruleset
+protecting `ubiq/*`; on GitLab, the merge request's "Delete source branch"). When merged Batches are deleted anyway,
+nothing is lost, but a Batch opened by hand afterwards is taken as merged and skipped, so the next Change opens the
+Batch numbered after it; and once no `ubiq/*` branch is left, numbering starts again at `ubiq/1`.
 
 ## Configuring the Server
 
@@ -221,9 +242,9 @@ are those of the stack in [dev](../dev).
 | `shared_secret`, `cookie_secret` | Pomerium's own; generated at first boot in production. | Fixed in the dev file, never reused. |
 | `databroker_storage_type`, `databroker_storage_connection_string` | Sessions and registered clients; a file on the instance, lost when it is replaced. | `file`, under the container's data directory. |
 | `idp_provider: oidc`, `idp_provider_url`, `idp_client_id`, `idp_client_secret` | The Identity Provider by discovery. | Keycloak realm `ubiq`; Google in the test Deployment. |
-| Route `ubiq.<domain>` → the Server, `pass_identity_headers: true` | The page; the assertion must reach the Server. | `http://host.docker.internal:8766` |
+| Route `ubiq.<domain>` → the Server, `pass_identity_headers: true` | The page; the assertion must reach the Server. | `http://ubiq:8766`, the Server's container |
 | Route `mcp.<domain>` → the Server, `pass_identity_headers: true`, `mcp: server` | The MCP endpoint; `mcp: server` makes the route an OAuth 2.1 protected resource with Pomerium as its authorization server. Bearer tokens only; a browser cookie does not open it. | the same upstream |
-| Policy on both routes: `authenticated_user: true` | A Reader is anyone the Identity Provider admits; the Writer Rule does the rest. | Replaces the dev stack's narrower `domain: is: ubiq.test`. |
+| Policy on both routes: `authenticated_user: true` | A Reader is anyone the Identity Provider admits; the Writer Rule does the rest. | The same. |
 | `mcp_allowed_client_id_domains` | Clients registering by a client ID metadata document must come from a listed host. | `[claude.ai]` |
 | Runtime flag `mcp_dynamic_client_registration` | For clients without a metadata document; off by default, and the metadata then shows no registration endpoint. | `true` |
 
@@ -243,7 +264,8 @@ project access token with `write_repository`, whose bot user GitLab creates. Any
 
 Packer bakes and Terraform places, both run from a Maintainer's machine; there is no pipeline
 ([ADR 0007](adr/0007-the-server-runs-beside-its-proxy-on-one-instance.md)). The code lives in
-[deploy/packer](../deploy/packer) and [deploy/terraform](../deploy/terraform) and is not reproduced here.
+[deploy/packer](../deploy/packer) and [deploy/terraform](../deploy/terraform) and is not reproduced here;
+[deploy/README.md](../deploy/README.md) holds the steps below with their commands.
 
 **Packer** bakes an Amazon Linux 2023 arm64 image for a `t4g.micro`: Pomerium from its rpm repository, which brings
 its own unit and user; the ubiq binary cross-compiled on the Maintainer's machine (`GOOS=linux GOARCH=arm64`) until
@@ -281,17 +303,19 @@ this scope, and SSM Parameter Store is the hardening step.
 2. Create the push credential: a GitHub machine account as collaborator with write on the one repository and a
    fine-grained token with contents read and write, or a GitLab project access token with `write_repository`; the
    longest lifetime the host allows, and a calendar reminder for its expiry.
-3. Optionally, the DNS record, when a domain is used without a Route53 zone.
-4. `packer build`, then `terraform apply` with the variables above.
-5. Log in to the page; connect Claude Code to the MCP route; `whoami`; then `define_term` as the smoke test, once
+3. Turn off the forge's automatic deletion of merged branches for `ubiq/*`, so merged Batches stay on origin.
+4. Optionally, the DNS record, when a domain is used without a Route53 zone.
+5. `packer build`, then `terraform apply` with the variables above.
+6. Log in to the page; connect Claude Code to the MCP route; `whoami`; then `define_term` as the smoke test, once
    against GitHub and once against GitLab.
 
 ## Development
 
-The stack in [dev](../dev) runs Pomerium and Keycloak under Docker Compose with everything on loopback, two test
-people (`writer` in group `ubiq-writers`, `reader` in none), curl scripts that play a browser and an MCP client, and a
-README of facts observed. It was built around the prototype; implementation makes it match this document: the Server's
-`-jwks` becomes `-assertion-keys`, `-default` goes, and the routes' admission becomes `authenticated_user: true`.
+The stack in [dev](../dev) runs Pomerium, Keycloak and the Server under Docker Compose with everything on loopback,
+two test people (`writer` in group `ubiq-writers`, `reader` in none), curl scripts that play a browser and an MCP
+client, and a README of facts observed. The Server there takes the flags above and the routes admit
+`authenticated_user: true`, as in a Deployment; it listens inside its container rather than on loopback, and its
+origin is a local bare repository seeded from the developer's checkout.
 
 ## Decisions
 

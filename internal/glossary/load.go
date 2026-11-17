@@ -9,8 +9,11 @@ import (
 )
 
 const (
-	mapFile      = "GLOSSARY-MAP.md"
+	// MapFile is the Context Map's path relative to the root.
+	MapFile      = "GLOSSARY-MAP.md"
 	glossaryFile = "GLOSSARY.md"
+	// ADRDir is where the ADRs are, relative to the root or to a Context's Glossary.
+	ADRDir = "docs/adr"
 )
 
 // Load parses the glossaries, the context map and the ADRs found under root, laid out as the domain-modeling
@@ -52,10 +55,10 @@ func Load(root string) (*Model, error) {
 
 // contextLinks lists the context glossaries under root and returns the context map's lines, nil without a map.
 func contextLinks(root string) ([]contextLink, []string, error) {
-	lines, err := readLines(filepath.Join(root, mapFile))
+	lines, err := readLines(filepath.Join(root, MapFile))
 	if errors.Is(err, fs.ErrNotExist) {
 		if _, err := os.Stat(filepath.Join(root, glossaryFile)); errors.Is(err, fs.ErrNotExist) {
-			return nil, nil, fmt.Errorf("no %s or %s under %s", mapFile, glossaryFile, root)
+			return nil, nil, fmt.Errorf("no %s or %s under %s", MapFile, glossaryFile, root)
 		}
 		return []contextLink{{rel: glossaryFile}}, nil, nil
 	}
@@ -64,7 +67,7 @@ func contextLinks(root string) ([]contextLink, []string, error) {
 	}
 	links := parseMapContexts(lines)
 	if len(links) == 0 {
-		return nil, nil, fmt.Errorf("%s links no context glossary under ## Contexts", mapFile)
+		return nil, nil, fmt.Errorf("%s links no context glossary under ## Contexts", MapFile)
 	}
 	return links, lines, nil
 }
