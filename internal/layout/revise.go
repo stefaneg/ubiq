@@ -12,7 +12,7 @@ import (
 // text and its whole new list of Avoided Words, moved to t's Cluster when it names another, and renamed to newName
 // when that is not empty. It returns the new text; model is the Domain Model as read.
 // Refused when t's name or definition is empty, when model has no Context t names or no Term of t's name in it, or
-// when newName names another Term of that Context; names are matched regardless of case.
+// when newName names another Term of that Context; names are matched regardless of case, spacing or punctuation.
 func Revise(text string, model *glossary.Model, t Term, newName string) (string, error) {
 	if err := t.Valid(); err != nil {
 		return "", err
@@ -23,8 +23,8 @@ func Revise(text string, model *glossary.Model, t Term, newName string) (string,
 	}
 	t.Name = term.Name
 	if newName = strings.TrimSpace(newName); newName != "" {
-		if other := model.TermNamed(t.Context, newName); other != nil && other != term {
-			return "", fmt.Errorf("the Term %s already exists in %s", other.Name, model.ContextName(t.Context))
+		if other := model.TermClashing(t.Context, newName); other != nil && other != term {
+			return "", clash(model, other, newName)
 		}
 		t.Name = newName
 	}

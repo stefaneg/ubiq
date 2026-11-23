@@ -88,6 +88,18 @@ func (m *Model) TermNamed(key, name string) *Term {
 	return nil
 }
 
+// TermClashing is the Term of the Context with key that a Term named name would clash with: the Term named name
+// regardless of case, or the one whose id it would take; nil when there is none.
+func (m *Model) TermClashing(key, name string) *Term {
+	if t := m.TermNamed(key, name); t != nil {
+		return t
+	}
+	if t := m.Terms[TermID(key, strings.TrimSpace(name))]; t != nil && t.Context == key {
+		return t
+	}
+	return nil
+}
+
 // HasContext tells whether the model has a Context with key.
 func (m *Model) HasContext(key string) bool {
 	return slices.ContainsFunc(m.Contexts, func(c Context) bool { return c.Key == key })

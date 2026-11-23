@@ -15,6 +15,7 @@ import (
 
 	"github.com/stefaneg/ubiq/internal/batch"
 	"github.com/stefaneg/ubiq/internal/glossarytest"
+	"github.com/stefaneg/ubiq/internal/health"
 	"github.com/stefaneg/ubiq/internal/person"
 )
 
@@ -127,6 +128,7 @@ func TestADefineIsRefusedNamingTheTermOrField(t *testing.T) {
 	cs := connect(t, url)
 	for args, refusal := range map[*map[string]any]string{
 		{"context": "Common", "name": "tag", "definition": "A label."}:    "The Term Tag already exists in Common.",
+		{"context": "Common", "name": "-tag", "definition": "A label."}:   "The name -tag differs from the Term Tag of Common only in case, spacing or punctuation.",
 		{"context": "Common", "name": " ", "definition": "A label."}:      "The Term's name is empty.",
 		{"context": "Common", "name": "Digest", "definition": " "}:        "The definition of Digest is empty.",
 		{"context": "Billing", "name": "Digest", "definition": "A hash."}: "No Context Billing; this repository has Workspace, Stacks and Common.",
@@ -306,4 +308,27 @@ func TestAStartRefusesACloneOfAnotherOrigin(t *testing.T) {
 	_, err = batch.Open(root, other, bot, &logBuffer{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not of "+other)
+}
+
+func TestNewFindingsTellsTermsOfTheSameNameInTwoContextsApart(t *testing.T) {
+	before := []health.Finding{
+		{Path: "GLOSSARY.md", Line: 5, Rule: "long", Name: "Order", Note: "3 sentences", Term: "shop/order"},
+	}
+	after := []health.Finding{
+		{Path: "GLOSSARY.md", Line: 7, Rule: "long", Name: "Order", Note: "3 sentences", Term: "shop/order"},
+		{Path: "billing/GLOSSARY.md", Line: 3, Rule: "long", Name: "Order", Note: "3 sentences", Term: "billing/order"},
+	}
+	assert.Equal(t, after[1:], newFindings(before, after))
+}
+
+func TestNewFindingsTellsUnresolvedPhrasesApartByFileAndWhere(t *testing.T) {
+	before := []health.Finding{
+		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Ghost", Note: "Shop: Relationships"},
+	}
+	after := []health.Finding{
+		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Ghost", Note: "Shop: Relationships"},
+		{Path: "GLOSSARY.md", Rule: "unresolved", Name: "Ghost", Note: "Shop: Language › Order"},
+		{Path: "billing/GLOSSARY.md", Rule: "unresolved", Name: "Ghost", Note: "Shop: Relationships"},
+	}
+	assert.Equal(t, after[1:], newFindings(before, after))
 }

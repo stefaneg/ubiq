@@ -148,3 +148,19 @@ func TestReviseRefusesARenameToAnExistingNameNamingIt(t *testing.T) {
 		Definition: "A request."}, "invoice")
 	require.EqualError(t, err, "the Term Invoice already exists in Shop")
 }
+
+func TestReviseRefusesARenameToANameThatDiffersFromAnotherTermOnlyInCaseSpacingOrPunctuation(t *testing.T) {
+	_, err := layout.Revise(shop, load(t, shop), layout.Term{Context: "shop", Name: "Order",
+		Definition: "A request."}, "In-voice")
+	require.NoError(t, err)
+	_, err = layout.Revise(shop, load(t, shop), layout.Term{Context: "shop", Name: "Order",
+		Definition: "A request."}, "invoice!")
+	require.EqualError(t, err, "the name invoice! differs from the Term Invoice of Shop only in case, spacing or punctuation")
+}
+
+func TestReviseAllowsARenameThatOnlyRepunctuatesTheTermsOwnName(t *testing.T) {
+	out, err := layout.Revise(shop, load(t, shop), layout.Term{Context: "shop", Name: "Order",
+		Definition: "A request."}, "ORDER")
+	require.NoError(t, err)
+	assert.Contains(t, out, "**ORDER**:\nA request.")
+}

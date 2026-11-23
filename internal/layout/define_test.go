@@ -213,6 +213,15 @@ func TestDefineRefusesATermThatExistsNamingIt(t *testing.T) {
 	require.EqualError(t, err, "the Term Customer already exists in Shop")
 }
 
+func TestDefineRefusesANameThatDiffersFromATermOnlyInCaseSpacingOrPunctuation(t *testing.T) {
+	_, err := layout.Define(shop, load(t, shop), layout.Term{Context: "shop", Name: "Custo-mer", Definition: "A buyer."})
+	require.NoError(t, err)
+	for _, name := range []string{"Customer.", "-customer-"} {
+		_, err := layout.Define(shop, load(t, shop), layout.Term{Context: "shop", Name: name, Definition: "A buyer."})
+		require.EqualError(t, err, "the name "+name+" differs from the Term Customer of Shop only in case, spacing or punctuation")
+	}
+}
+
 func TestDefineRefusesAnEmptyName(t *testing.T) {
 	_, err := layout.Define(shop, load(t, shop), layout.Term{Context: "shop", Name: " ", Definition: "A buyer."})
 	require.EqualError(t, err, "the Term's name is empty")

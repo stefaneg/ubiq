@@ -48,7 +48,7 @@ var (
 
 // Define adds t to text, the Glossary of t's Context, and returns the new text. model is the Domain Model as read.
 // Refused when t is not valid, when model has no Context t names, or when that Context already has a Term of that
-// name, regardless of case.
+// name, regardless of case, spacing or punctuation.
 func Define(text string, model *glossary.Model, t Term) (string, error) {
 	if err := t.Valid(); err != nil {
 		return "", err
@@ -57,10 +57,19 @@ func Define(text string, model *glossary.Model, t Term) (string, error) {
 	if !model.HasContext(t.Context) {
 		return "", fmt.Errorf("no Context %s", t.Context)
 	}
-	if x := model.TermNamed(t.Context, t.Name); x != nil {
-		return "", fmt.Errorf("the Term %s already exists in %s", x.Name, model.ContextName(t.Context))
+	if x := model.TermClashing(t.Context, t.Name); x != nil {
+		return "", clash(model, x, t.Name)
 	}
 	return place(strings.Split(text, "\n"), t.Cluster, termLines(model, t.Name, t)), nil
+}
+
+// clash is why name is refused for the Term x of model it clashes with.
+func clash(model *glossary.Model, x *glossary.Term, name string) error {
+	if strings.EqualFold(x.Name, name) {
+		return fmt.Errorf("the Term %s already exists in %s", x.Name, model.ContextName(x.Context))
+	}
+	return fmt.Errorf("the name %s differs from the Term %s of %s only in case, spacing or punctuation",
+		name, x.Name, model.ContextName(x.Context))
 }
 
 // termLines is the lines t is written as: its name line, its definition with every mention of a Term of model other

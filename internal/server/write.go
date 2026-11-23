@@ -27,8 +27,8 @@ const defineDescription = `Define a new Term in this repository's glossary. Writ
 	`after the last Term. Name the Context when the repository has more than one. The Term lands at once as a commit ` +
 	`authored by you in the open Batch, a ubiq/<n> branch a Maintainer merges, and the next lookup sees it. The answer ` +
 	`is the Term as it now reads, the commit, the Batch, and the Findings the Change introduced, which warn and never ` +
-	`refuse. Refused when you are a Reader, when the Term exists in that Context, when the Context does not exist, or ` +
-	`when the name or definition is empty. Look the words up first so the definition reuses existing Terms.`
+	`refuse. Refused when you are a Reader, when the Term exists in that Context, even written with other case, ` +
+	`spacing or punctuation, when the Context does not exist, or when the name or definition is empty. Look the words up first so the definition reuses existing Terms.`
 
 const reviseDescription = `Revise a Term in this repository's glossary. Look it up first: the definition, as plain ` +
 	`text, and the avoid list replace the Term's in full, and existing Term names in the definition become References. ` +
@@ -36,8 +36,8 @@ const reviseDescription = `Revise a Term in this repository's glossary. Look it 
 	`Term and rewrite every Reference to it in every glossary. Name the Context when the repository has more than one. ` +
 	`The Change lands at once as a commit authored by you in the open Batch, a ubiq/<n> branch a Maintainer merges. ` +
 	`The answer is the Term as it now reads, the commit, the Batch, and the Findings the Change introduced. Refused ` +
-	`when you are a Reader, when the Term does not exist in that Context or new_name names another that does, when the ` +
-	`Context does not exist, or when the name or definition is empty.`
+	`when you are a Reader, when the Term does not exist in that Context or new_name names another that does, even ` +
+	`written with other case, spacing or punctuation, when the Context does not exist, or when the name or definition is empty.`
 
 const removeDescription = `Remove a Term from this repository's glossary. Name the Context when the repository has ` +
 	`more than one. The Change lands at once as a commit authored by you in the open Batch, a ubiq/<n> branch a ` +
@@ -245,19 +245,28 @@ func contextNamed(model *glossary.Model, named string) (glossary.Context, error)
 	return glossary.Context{}, fmt.Errorf("no Context %s; this repository has %s", named, prose.List(names))
 }
 
-// newFindings is the Findings in after that before did not have, matched by rule and name since lines move.
+// newFindings is the Findings in after that before did not have. Lines move, so a Term's Finding is matched by rule
+// and Term id, and an Unresolved Phrase by phrase, file and where it is.
 func newFindings(before, after []health.Finding) []health.Finding {
 	seen := map[string]bool{}
 	for _, f := range before {
-		seen[f.Rule+"|"+f.Name] = true
+		seen[findingKey(f)] = true
 	}
 	var out []health.Finding
 	for _, f := range after {
-		if !seen[f.Rule+"|"+f.Name] {
+		if !seen[findingKey(f)] {
 			out = append(out, f)
 		}
 	}
 	return out
+}
+
+// findingKey is what tells f apart from the Findings of other Terms and phrases, whatever line it is on.
+func findingKey(f health.Finding) string {
+	if f.Term != "" {
+		return f.Rule + "|" + f.Term
+	}
+	return f.Rule + "|" + f.Path + "|" + f.Note + "|" + f.Name
 }
 
 // called is how a refusal names a Person.

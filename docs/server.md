@@ -133,6 +133,8 @@ cleaning up calls `health`.
 - the Person is a Reader, in which case the refusal names the Writer Rule's claim and accepted values;
 - `define_term` names a Term that exists in that Context, or `revise_term` or `remove_term` names one that does not;
 - `revise_term`'s `new_name` names another Term of that Context;
+- in both, a name counts as naming a Term when it differs from it only in case, spacing or punctuation, as
+  `Order-ID` and `Order ID` do, since the two would share one id;
 - `context` names no Context, or is left out where the repository has more than one;
 - `name`, `definition`, `title` or `text` is empty;
 - `record_adr`'s `title` has no letters or digits to name the file by, or names it as an existing ADR's file is
