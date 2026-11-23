@@ -4,7 +4,7 @@ Tooling for a domain-driven design ubiquitous language kept as Markdown in the r
 
 ubiq reads the `GLOSSARY.md` glossaries, the `GLOSSARY-MAP.md` context map, and the `docs/adr` decision records.
 It renders them as one HTML page, looks up what a word means, and checks both the glossary and other text against
-the vocabulary. It also serves the lookup and the check to coding agents over MCP.
+the vocabulary. It also serves the lookup, the check and the health report to coding agents over MCP.
 
 ## Usage
 
@@ -62,7 +62,8 @@ ubiq lookup Clip "upload queue" VideoFile
 
 `lookup` answers, for each word, what the glossary says about it. The word may be written as prose or as an
 identifier: `StackImage`, `stack_image`, `stack-image` and `stack images` all find the term Stack Image. When the word
-names a term, `lookup` prints the term with its context, place, and definition. It also prints:
+names a term, `lookup` prints the term with its context, its cluster when it sits under one, its place, and its
+definition. It also prints:
 
 - what the term refers to, and what refers to it
 - the terms that statements mention alongside it
@@ -70,7 +71,7 @@ names a term, `lookup` prints the term with its context, place, and definition. 
 - the ADRs that mention it
 
 ```
-Clip (Course Video Manager), GLOSSARY.md:12
+Clip (Course Video Manager › Editing), GLOSSARY.md:12
   A cut of one Recording that belongs to a Lesson.
   avoid: video, snippet
   refers to: Recording, Lesson
@@ -124,10 +125,12 @@ ubiq mcp
 ```
 
 `mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server on stdin and stdout, so that a coding
-agent can ask about the glossary while it works. It has two read-only tools:
+agent can ask about the glossary while it works. It has four read-only tools:
 
 - `lookup` takes a list of words and answers as `ubiq lookup` does.
 - `check` takes a text and answers as `ubiq check` does.
+- `health` answers as `ubiq health` does, findings and summary line together.
+- `whoami` gives the git identity of the working tree, `user.name` and `user.email`, with role Maintainer.
 
 Each call reads the glossary again, so an agent that edits `GLOSSARY.md` gets answers from the edited file. A call
 takes milliseconds even for a glossary of a thousand terms. To add the server to Claude Code for a repository, run
@@ -141,6 +144,41 @@ The command writes it to `.mcp.json`. Other agents take the same command, `ubiq 
 
 For a small glossary, an agent can as well read `GLOSSARY.md` itself. The server pays off once the glossary and ADRs
 are too long to read in every session, or once the repository has several contexts.
+
+### Serve the page and the tools over HTTP
+
+```sh
+ubiq serve -root /var/lib/ubiq/repo -origin https://github.com/example/handbook.git \
+  -assertion-keys https://authenticate.glossary.example.com/.well-known/pomerium/jwks.json -writers glossary-writers
+```
+
+`serve` runs the Server: one long-running process for one repository, behind an identity-aware proxy, that serves
+the page `ubiq html` renders at `/`, with the Person's name and role at the top, and the four tools of `ubiq mcp` over
+the MCP streamable transport at `/mcp`. Every request is on behalf of a Person the proxy vouches for; a request with
+none is answered `401`. A Writer's Agent may also call `define_term`: the Term lands at once as a commit authored by
+the Person in the open Batch, a `ubiq/<n>` branch on origin that a Maintainer merges by hand. The Server clones
+origin into `-root` on first start and reuses the clone after; it reads the open Batch, and its instructions name
+the branch. It logs one line per request and per Change to stderr. The design is [docs/server.md](docs/server.md).
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `-root <dir>` | `.` | The clone the Server owns: cloned from `-origin` when it holds no `.git`, reused otherwise. |
+| `-origin <url>` | required | The repository, by HTTPS; SSH is refused. A local path is accepted for development. |
+| `-listen <addr>` | `127.0.0.1:8766` | Loopback; the proxy sits in front. |
+| `-assertion-keys <url>` | required unless `-person` | Where the proxy publishes the keys that sign its assertion. |
+| `-ca <file>` | system roots | Extra CA to trust when fetching the keys. |
+| `-writer-claim <name>` | `groups` | The Writer Rule's claim. |
+| `-writers <v,v,...>` | required | The Writer Rule's accepted values. |
+| `-committer "Name <email>"` | `ubiq serve <ubiq@localhost>` | The Server's git identity, committer of every Change. |
+| `-person "Name <email>"` | off | Dev direct mode: every request is this Person, a Writer, with no proxy; loopback only. |
+
+It refuses to start when `-writers` is missing, when it has neither or both of `-assertion-keys` and `-person`, when
+`-person` is given with a `-listen` that is not loopback, or when `-origin` is missing, SSH or another scheme than
+HTTPS. To try it alone:
+
+```sh
+ubiq serve -root /tmp/handbook -origin /path/to/handbook.git -writers dev -person "Ada Lovelace <ada@example.com>"
+```
 
 ## Examples
 

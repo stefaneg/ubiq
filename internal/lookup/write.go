@@ -53,11 +53,20 @@ func (r *Result) Write(w io.Writer) {
 	}
 }
 
-// writeTerm writes a Term's name, Context and place, its definition, and each line of what else the model says about
+// WriteTerm writes the Term with id as a lookup that names it writes it.
+func (l *Lookup) WriteTerm(w io.Writer, id string) {
+	l.writeTerm(w, l.model.Terms[id])
+}
+
+// writeTerm writes a Term's name, Context, Cluster and place, its definition, and each line of what else the model says about
 // it, leaving out the lines that would be empty.
 func (l *Lookup) writeTerm(w io.Writer, t *glossary.Term) {
 	m := l.model
-	fmt.Fprintf(w, "%s (%s), %s:%d\n", t.Name, m.ContextName(t.Context), l.contextPath(t.Context), t.Line)
+	where := m.ContextName(t.Context)
+	if t.Cluster != "" {
+		where += " › " + t.Cluster
+	}
+	fmt.Fprintf(w, "%s (%s), %s:%d\n", t.Name, where, l.contextPath(t.Context), t.Line)
 	fmt.Fprintf(w, "  %s\n", glossary.PlainText(t.Definition))
 	field := func(label, value string) {
 		if value != "" {

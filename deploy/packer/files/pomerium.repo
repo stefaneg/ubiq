@@ -1,0 +1,13 @@
+# Pomerium's rpm repository on Cloudsmith, as its setup script writes it for Enterprise Linux.
+[pomerium-pomerium]
+name=pomerium-pomerium
+baseurl=https://dl.cloudsmith.io/public/pomerium/pomerium/rpm/el/any-version/$basearch
+repo_gpgcheck=1
+enabled=1
+skip_if_unavailable=0
+gpgkey=https://dl.cloudsmith.io/public/pomerium/pomerium/gpg.6E388440B94E1407.key
+gpgcheck=1
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+metadata_expire=300
+type=rpm-md

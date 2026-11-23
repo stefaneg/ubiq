@@ -3,6 +3,7 @@ module github.com/stefaneg/ubiq
 go 1.25.0
 
 require (
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/stretchr/testify v1.11.1
 )

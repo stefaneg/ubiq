@@ -89,7 +89,7 @@ _Avoid_: run, attempt
 func TestResultWritesEverythingTheModelSaysAboutANamedTerm(t *testing.T) {
 	var out strings.Builder
 	New(glossarytest.Load(t)).Find("stack image").Write(&out)
-	assert.Equal(t, `Stack Image (Stacks), internal/stacks/GLOSSARY.md:13
+	assert.Equal(t, `Stack Image (Stacks › Environment Model), internal/stacks/GLOSSARY.md:13
   An image a Stack runs, identified by a workspace Image.
   avoid: stack container
   refers to: Stack, Image (Workspace)
@@ -144,7 +144,7 @@ func TestResultSaysWhichTermsToUseInsteadOfAnAvoidedWord(t *testing.T) {
 	var out strings.Builder
 	New(glossarytest.Load(t)).Find("deployments").Write(&out)
 	assert.True(t, strings.HasPrefix(out.String(), `"deployments" is an Avoided Word. Use instead:
-Stack (Stacks), internal/stacks/GLOSSARY.md:9
+Stack (Stacks › Environment Model), internal/stacks/GLOSSARY.md:9
   A named Stack Image in an environment, deployed by a Run.
 `), out.String())
 }

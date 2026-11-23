@@ -68,6 +68,7 @@ body.dragging .handle{background:#5a7399}
 .top h1 a{color:inherit;text-decoration:none}
 .top h1 a:hover{color:var(--accent)}
 .search{position:relative;flex:1}
+.person{white-space:nowrap;color:var(--muted);font-size:.9em}
 .search input{width:100%;padding:.55em .8em;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:1em;background:var(--panel);color:var(--fg)}
 .results{position:absolute;left:0;right:0;top:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:60vh;overflow:auto;display:none}
 .results a{display:flex;justify-content:space-between;padding:.4em .8em;color:inherit;text-decoration:none}
@@ -170,7 +171,7 @@ const avoidLine = t => t.avoid ? `<div class="avoid"><b>Avoid:</b> ${esc(t.avoid
 const ctxChip = id => chip(ctxCls(T[id].context), CTX_NAME[T[id].context]);
 function badges(id, withCtx = true) {
   const t = T[id]; let s = '';
-  if (withCtx) s += chip(ctxCls(t.context), CTX_NAME[t.context], t.cluster);
+  if (withCtx) s += chip(ctxCls(t.context), CTX_NAME[t.context], t.cluster || 'General');
   const sw = sameWord(id);
   if (sw.length) s += chip('also', 'also in ' + sw.map(x => CTX_NAME[T[x].context]).join(', '), 'A term of the same name is defined in another context');
   return s;
@@ -251,7 +252,7 @@ function healthBlock(id) {
 }
 function termCard(id) {
   const t = T[id];
-  return `<div class="card"><h2>${esc(t.name)}${badges(id)}</h2><div class="muted small">${esc(t.cluster)} · line ${t.line} of ${esc(DATA.contexts.find(c => c.key === t.context).path)}</div>
+  return `<div class="card"><h2>${esc(t.name)}${badges(id)}</h2><div class="muted small">${esc(t.cluster || 'General')} · line ${t.line} of ${esc(DATA.contexts.find(c => c.key === t.context).path)}</div>
     <div class="def">${t.definition}</div>${avoidLine(t)}
     ${sameWordBlock(id)}
     <div class="graph">${neighbourhood(id)}</div>
@@ -411,6 +412,7 @@ function healthPage() {
 // ------------------------------------------------------------------ router
 const app = document.getElementById('app'), nav = app.querySelector('.nav'), body = app.querySelector('.body'), trailEl = app.querySelector('.trail'), wrap = app.querySelector('.mainwrap');
 navTree(nav); searchBox(app.querySelector('.search')); splitter(app, app.querySelector('.handle'));
+if (DATA.person) app.querySelector('.top').insertAdjacentHTML('beforeend', `<div class="person">${esc(DATA.person.name)} · ${esc(DATA.person.role)}</div>`);
 const trail = [];
 const PAGES = { check: () => checkPage(), health: () => healthPage(), map: () => mapPage() };
 function onNav() {

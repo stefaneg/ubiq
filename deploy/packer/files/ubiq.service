@@ -1,0 +1,22 @@
+# The Server (docs/server.md). The ExecStart line is the whole configuration; first boot replaces each @NAME@ with
+# its value from /etc/ubiq/provision.env (files/first-boot.sh). The Server listens on 127.0.0.1:8766, its default,
+# behind Pomerium, and clones origin into -root on its first start.
+[Unit]
+Description=ubiq serve, the Server
+Wants=network-online.target
+After=network-online.target pomerium.service
+
+[Service]
+User=ubiq
+Group=ubiq
+ExecStart=/usr/local/bin/ubiq serve \
+  -root /var/lib/ubiq/repo \
+  -origin "@ORIGIN@" \
+  -assertion-keys "https://authenticate.@DOMAIN@/.well-known/pomerium/jwks.json" \
+  -writer-claim "@WRITER_CLAIM@" -writers "@WRITERS@" \
+  -committer "@COMMITTER@"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

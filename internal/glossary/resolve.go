@@ -59,6 +59,10 @@ type Resolver struct {
 	quiet     bool // unresolved bold is marked but not reported, for text whose Statements report it
 }
 
+// TermID is the id of the Term named name in the Context with key. Names that differ only in case, spacing or
+// punctuation, as "Order ID" and "Order-ID", share one id.
+func TermID(key, name string) string { return key + "/" + slug(name) }
+
 func slug(s string) string {
 	s = strings.ToLower(s)
 	var b strings.Builder
@@ -368,7 +372,7 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 		r.byContext[rc.key] = map[string]string{}
 		for _, cname := range rc.clusterOrder {
 			for _, t := range rc.clusters[cname].terms {
-				id := rc.key + "/" + slug(t.name)
+				id := TermID(rc.key, t.name)
 				r.byContext[rc.key][strings.ToLower(t.name)] = id
 				term := &Term{ID: id, Name: t.name, Context: rc.key, Cluster: cname, Avoid: t.avoid, Line: t.line}
 				term.Redirects = term.redirects()
@@ -383,9 +387,13 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 		c := Context{Key: rc.key, Name: rc.name, Path: rc.path, Intro: r.renderIntro(rc.intro, rc.key)}
 		for _, cname := range rc.clusterOrder {
 			cl := rc.clusters[cname]
-			cc := Cluster{Key: slug(cname), Name: cname, Intro: r.renderIntro(cl.intro, rc.key)}
+			shown := cname
+			if shown == "" {
+				shown = General
+			}
+			cc := Cluster{Key: slug(shown), Name: shown, Intro: r.renderIntro(cl.intro, rc.key)}
 			for _, t := range cl.terms {
-				id := rc.key + "/" + slug(t.name)
+				id := TermID(rc.key, t.name)
 				term := m.Terms[id]
 				term.Definition, term.Refs = r.inline(r.mentions.bold(t.def, t.name), rc.key, t.name)
 				term.Refs = without(term.Refs, id)
@@ -401,7 +409,7 @@ func build(contexts []*rawContext, mapStatements []rawStatement, mapHeadings []r
 		r.file = rc.path
 		m.Statements = append(m.Statements, r.renderStatements(rc.key, rc.statements, rc.headings)...)
 	}
-	r.file = mapFile
+	r.file = MapFile
 	m.Statements = append(m.Statements, r.renderStatements("", mapStatements, mapHeadings)...)
 	m.ADRs = r.renderADRs(adrs)
 	sort.Slice(m.Unresolved, func(i, j int) bool { return m.Unresolved[i].Phrase < m.Unresolved[j].Phrase })

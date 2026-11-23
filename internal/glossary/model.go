@@ -4,6 +4,8 @@ package glossary
 import (
 	"html"
 	"regexp"
+	"slices"
+	"strings"
 )
 
 // Context is one glossary file.
@@ -27,7 +29,7 @@ type Term struct {
 	ID         string   `json:"id"`
 	Name       string   `json:"name"`
 	Context    string   `json:"context"`
-	Cluster    string   `json:"cluster"`
+	Cluster    string   `json:"cluster"`    // the heading the Term sits under, empty under none
 	Definition string   `json:"definition"` // html with resolved term links
 	Avoid      string   `json:"avoid"`      // the Avoid line as written
 	Redirects  []string `json:"redirects"`  // avoided words that name a synonym, see Term.redirects
@@ -73,6 +75,34 @@ func (m *Model) ContextName(key string) string {
 		}
 	}
 	return key
+}
+
+// TermNamed is the Term of the Context with key named name, regardless of case and surrounding space, or nil.
+func (m *Model) TermNamed(key, name string) *Term {
+	name = strings.TrimSpace(name)
+	for _, t := range m.Terms {
+		if t.Context == key && strings.EqualFold(t.Name, name) {
+			return t
+		}
+	}
+	return nil
+}
+
+// TermClashing is the Term of the Context with key that a Term named name would clash with: the Term named name
+// regardless of case, or the one whose id it would take; nil when there is none.
+func (m *Model) TermClashing(key, name string) *Term {
+	if t := m.TermNamed(key, name); t != nil {
+		return t
+	}
+	if t := m.Terms[TermID(key, strings.TrimSpace(name))]; t != nil && t.Context == key {
+		return t
+	}
+	return nil
+}
+
+// HasContext tells whether the model has a Context with key.
+func (m *Model) HasContext(key string) bool {
+	return slices.ContainsFunc(m.Contexts, func(c Context) bool { return c.Key == key })
 }
 
 var reTag = regexp.MustCompile(`<[^>]*>`)

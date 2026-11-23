@@ -1,0 +1,70 @@
+# The dev Deployment: Pomerium in front, Keycloak as the Identity Provider, the Server behind.
+# See dev/README.md. Everything here is loopback-only and holds throwaway secrets.
+name: ubiq-dev
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # One issuer URL for both the browser (public DNS -> 127.0.0.1) and
+      # Pomerium (compose network alias below).
+      KC_HOSTNAME: http://keycloak.localhost.pomerium.io:8080
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    networks:
+      default:
+        aliases:
+          - keycloak.localhost.pomerium.io
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  pomerium:
+    image: pomerium/pomerium:v0.34.0
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:443:443"
+    volumes:
+      - ./pomerium/config.yaml:/pomerium/config.yaml:ro
+      - ./certs:/pomerium/certs:ro
+      - pomerium-data:/data
+    networks:
+      default:
+        aliases:
+          # The Server fetches the assertion keys from here (public DNS would give it its own loopback).
+          - authenticate.localhost.pomerium.io
+
+  # The Server, built from this checkout, with the flags of docs/server.md. It listens on all of its container's
+  # interfaces so Pomerium can reach it, and publishes no port: the only way in is through the proxy.
+  # Its origin is data/origin.git, made by ./seed-origin.sh; its clone lives in the ubiq-data volume.
+  ubiq:
+    build:
+      context: ..
+      dockerfile: dev/ubiq/Dockerfile
+    command:
+      - serve
+      - -root=/data/repo
+      - -origin=/origin.git
+      - -listen=0.0.0.0:8766
+      - -assertion-keys=https://authenticate.localhost.pomerium.io/.well-known/pomerium/jwks.json
+      - -ca=/certs/ca.pem
+      - -writer-claim=groups
+      - -writers=ubiq-writers
+      - -committer=ubiq serve <ubiq@localhost>
+    volumes:
+      - ./data/origin.git:/origin.git
+      - ./certs/ca.pem:/certs/ca.pem:ro
+      - ubiq-data:/data
+
+volumes:
+  pomerium-data:
+  ubiq-data:

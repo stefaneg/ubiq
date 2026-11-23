@@ -3,7 +3,9 @@ package glossarytest
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -155,4 +157,38 @@ func Load(t *testing.T) *glossary.Model {
 	model, err := glossary.Load(Root(t))
 	require.NoError(t, err)
 	return model
+}
+
+// Origin makes a bare repository in a temp dir whose default branch, main, holds one commit of the files under root,
+// and returns its path: an origin for the Server to clone. Run it with git's user and system config shut out, as
+// Isolate does.
+func Origin(t *testing.T, root string) string {
+	t.Helper()
+	origin := filepath.Join(t.TempDir(), "origin.git")
+	Git(t, "", "init", "--quiet", "--bare", "--initial-branch=main", origin)
+	Git(t, root, "init", "--quiet", "--initial-branch=main")
+	Git(t, root, "add", "--all")
+	Git(t, root, "-c", "user.name=Seed", "-c", "user.email=seed@example.com", "commit", "--quiet", "-m", "Seed")
+	Git(t, root, "push", "--quiet", origin, "main")
+	return origin
+}
+
+// Git runs the host's git in dir, the current directory when empty, and returns its trimmed output.
+func Git(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git %s: %s", strings.Join(args, " "), out)
+	return strings.TrimSpace(string(out))
+}
+
+// Isolate shuts the user's and the system's git config out of every git the process runs, so that a developer's
+// signing, hooks path or identity cannot change a test. Call it from TestMain.
+func Isolate() {
+	_ = os.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	_ = os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	for _, v := range []string{"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_DIR"} {
+		_ = os.Unsetenv(v)
+	}
 }
